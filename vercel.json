@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/**/*.py": {
+      "memory": 1024,
+      "maxDuration": 60,
+      "excludeFiles": "{.git/**,.vscode/**,dist/**,node_modules/**,public/**,src/**,supabase/**}"
+    }
+  }
+}
+

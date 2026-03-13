@@ -104,7 +104,7 @@ export const fetchNetWorth     = (username, profileId, options = {}) =>
 
 // Mayor
 export const fetchMayor = (options = {}) => request('/mayor', options);
-export const fetchHealth = (options = {}) => requestAbsolute('/healthz', options);
+export const fetchHealth = (options = {}) => request('/healthz', options);
 export const fetchStatus = (options = {}) => request('/status', options);
 export const fetchPriceItem = (itemId, options = {}) =>
   request(`/prices/item/${encodeURIComponent(itemId)}`, options);

@@ -49,6 +49,7 @@ Frontend:
 npm install
 npm run dev
 ```
+Vite proxies browser requests from `/api/*` to the backend (and strips the `/api` prefix).
 
 ## Production build
 ```
@@ -56,9 +57,20 @@ npm run build
 npm run preview
 ```
 
+## Vercel deployment (frontend + backend)
+This repo is set up for a single Vercel project:
+- Frontend is built as a static Vite site (`dist/`).
+- Backend runs as a Vercel Python Function mounted at `/api` via `api/index.py`.
+
+Set these environment variables in Vercel:
+- `HYPIXEL_API_KEY` (required for player endpoints)
+- `REDIS_URL` (optional, enables Redis cache)
+- `ALLOWED_ORIGINS` (optional; same-origin calls don’t need it)
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (optional, if using Supabase features)
+
 ## Health checks
 ```
-GET /healthz
+GET /api/healthz
 GET /api/status
 ```
 

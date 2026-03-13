@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import asyncio
 import os
 import time
 from dotenv import load_dotenv
@@ -25,8 +26,13 @@ START_TIME = time.time()
 async def lifespan(app: FastAPI):
     load_api_key()
     await init_cache()
-    await ah_index.start()
-    await price_history.start()
+    # On Vercel Functions, avoid blocking cold-starts on long warmups.
+    if os.environ.get("VERCEL"):
+        asyncio.create_task(ah_index.start())
+        asyncio.create_task(price_history.start())
+    else:
+        await ah_index.start()
+        await price_history.start()
     yield
     await price_history.stop()
     await ah_index.stop()
@@ -56,11 +62,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(bazaar.router,   prefix="/api")
-app.include_router(auctions.router, prefix="/api")
-app.include_router(player.router,   prefix="/api")
-app.include_router(mayor.router,    prefix="/api")
-app.include_router(prices.router,   prefix="/api")
+app.include_router(bazaar.router)
+app.include_router(auctions.router)
+app.include_router(player.router)
+app.include_router(mayor.router)
+app.include_router(prices.router)
 
 
 @app.get("/")
@@ -85,7 +91,7 @@ async def healthz():
     }
 
 
-@app.get("/api/status")
+@app.get("/status")
 async def api_status():
     return {
         "uptime_seconds": round(time.time() - START_TIME, 1),
@@ -102,3 +108,26 @@ async def api_status():
             "last_snapshot": price_history.last_snapshot,
         },
     }
+
+
+class _StripApiPrefix:
+    """ASGI wrapper to handle deployments that forward the full `/api/...` path to the app."""
+
+    def __init__(self, inner_app):
+        self._inner = inner_app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") in ("http", "websocket"):
+            path = scope.get("path", "")
+            if path == "/api" or path.startswith("/api/"):
+                new_scope = dict(scope)
+                new_scope["path"] = path[4:] or "/"
+                root_path = new_scope.get("root_path") or ""
+                if not root_path.endswith("/api"):
+                    new_scope["root_path"] = f"{root_path}/api" if root_path else "/api"
+                scope = new_scope
+        await self._inner(scope, receive, send)
+
+
+# Export the wrapped app for platforms that don't strip the `/api` mount prefix.
+app = _StripApiPrefix(app)
