@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
+import KoFiCorner from './components/KoFiCorner';
 import Dashboard from './components/Dashboard';
 import Bazaar from './components/Bazaar';
 import AuctionHouse from './components/AuctionHouse';
@@ -77,6 +78,7 @@ export default function App() {
         <ErrorBoundary>
           <a href="#main-content" className="skip-link">Skip to content</a>
           <MobileNav />
+          <KoFiCorner />
           <div className="app-shell">
             <Sidebar />
             <main id="main-content" className="app-main" role="main">
