@@ -30,7 +30,7 @@ async def bazaar_flips(
     request: Request,
     min_volume: int = Query(1000, description="Minimum weekly volume"),
     min_margin: float = Query(2.0, description="Minimum margin %"),
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, le=1000),
 ):
     """Return sorted flip opportunities (cached 90 s)."""
     try:

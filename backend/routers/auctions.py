@@ -40,10 +40,16 @@ async def search_auctions(
 ):
     """Search ALL live auctions by item name from in-memory index."""
     if not ah_index.ready:
-        raise HTTPException(status_code=503, detail="AH index is still loading, try again shortly")
+        return {
+            "ready": False,
+            "count": 0,
+            "index_age_seconds": None,
+            "auctions": [],
+        }
 
     results = ah_index.search(query, bin_only=bin_only)
     return {
+        "ready": True,
         "count": len(results),
         "index_age_seconds": round(time.time() - ah_index.last_update, 1),
         "auctions": results,
@@ -64,7 +70,12 @@ async def sniper(
     Uses the in-memory AH index — no extra Hypixel calls.
     """
     if not ah_index.ready:
-        raise HTTPException(status_code=503, detail="AH index is still loading")
+        return {
+            "ready": False,
+            "count": 0,
+            "snipes": [],
+            "index_age_seconds": None,
+        }
 
     # Gather all BIN auctions
     bins: list[dict] = [a for a in ah_index._auctions if a.get("bin")]
@@ -118,6 +129,7 @@ async def sniper(
 
     snipes.sort(key=lambda x: x["profit"], reverse=True)
     return {
+        "ready": True,
         "count": len(snipes),
         "snipes": snipes[:limit],
         "index_age_seconds": round(time.time() - ah_index.last_update, 1),

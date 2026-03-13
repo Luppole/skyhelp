@@ -5,6 +5,7 @@ Fetches all AH pages on startup then refreshes every 60 s.
 Searches run entirely in-process — no per-query Hypixel calls.
 """
 import asyncio
+import os
 import time
 import httpx
 
@@ -63,8 +64,15 @@ class AHIndex:
                 total = page0.get("totalPages", 1)
                 all_auctions: list[dict] = list(page0.get("auctions", []))
 
-                for batch_start in range(1, total, BATCH_SIZE):
-                    pages = range(batch_start, min(batch_start + BATCH_SIZE, total))
+                # Serverless platforms can time out if we try to index *all* pages on cold start.
+                # Cap pages on Vercel unless explicitly overridden.
+                max_pages = int(os.environ.get("AH_INDEX_MAX_PAGES", "0") or "0")
+                if os.environ.get("VERCEL") and max_pages <= 0:
+                    max_pages = 10
+                effective_total = min(total, max_pages) if max_pages > 0 else total
+
+                for batch_start in range(1, effective_total, BATCH_SIZE):
+                    pages = range(batch_start, min(batch_start + BATCH_SIZE, effective_total))
                     results = await asyncio.gather(
                         *[_fetch_page(client, p) for p in pages],
                         return_exceptions=True,
@@ -75,9 +83,9 @@ class AHIndex:
                         all_auctions.extend(r.get("auctions", []))
 
             self._auctions = all_auctions
-            self._total_pages = total
+            self._total_pages = effective_total
             self._last_update = time.time()
-            print(f"[AH] Indexed {len(all_auctions):,} auctions across {total} pages")
+            print(f"[AH] Indexed {len(all_auctions):,} auctions across {effective_total} pages")
 
         except Exception as exc:
             print(f"[AH] Refresh failed: {exc}")
