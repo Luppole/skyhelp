@@ -5,7 +5,7 @@ SkyHelper is a production-ready Hypixel SkyBlock analytics suite with a React fr
 ## Features
 - Bazaar flip finder with price history and watchlist
 - Auction House search across a full in-memory index
-- AH BIN sniper with configurable thresholds
+- AH BIN sniper with configurable threshold
 - Player stats, skills, slayers, and dungeons
 - Net worth estimator
 - Mayor and event tracker
