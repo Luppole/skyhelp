@@ -291,7 +291,10 @@ def _find_active_profile(profiles: list[dict], clean_uuid: str) -> Optional[dict
     """Return the most-recently-saved profile from a profiles list."""
     best, latest = None, 0
     for p in profiles:
-        save = p.get("members", {}).get(clean_uuid, {}).get("last_save", 0)
+        try:
+            save = int(((p.get("members") or {}).get(clean_uuid) or {}).get("last_save") or 0)
+        except Exception:
+            save = 0
         if save > latest:
             latest, best = save, p
     return best or next((p for p in profiles if p.get("selected")), None)
@@ -344,8 +347,8 @@ async def player_lookup(
         try:
             full_resp    = await get_skyblock_profile(api_key, active_stub["profile_id"])
             full_profile = full_resp.get("profile") or full_resp
-            full_member  = (full_profile.get("members") or {}).get(clean_uuid, {})
-            last_save_ms = full_member.get("last_save", 0)
+            full_member  = ((full_profile.get("members") or {}).get(clean_uuid) or {})
+            last_save_ms = int(full_member.get("last_save") or 0)
             analyzed     = analyze_profile(full_profile, uuid)
         except Exception:
             # Fall back to stub data if single-profile fetch fails
@@ -408,7 +411,10 @@ async def profile_stats(
         stats, error = None, str(exc)
 
     clean_uuid   = uuid.replace("-", "")
-    last_save_ms = (target.get("members") or {}).get(clean_uuid, {}).get("last_save", 0)
+    try:
+        last_save_ms = int(((target.get("members") or {}).get(clean_uuid) or {}).get("last_save") or 0)
+    except Exception:
+        last_save_ms = 0
 
     return {
         "profile_id":   profile_id,
@@ -460,7 +466,7 @@ async def networth(
         raise HTTPException(status_code=404, detail="Profile not found")
 
     clean_uuid = uuid.replace("-", "")
-    member: dict = (profile.get("members") or {}).get(clean_uuid, {})
+    member: dict = ((profile.get("members") or {}).get(clean_uuid) or {})
 
     # ── Inventory helper ──────────────────────────────────────────────────
     # v2: all inventory lives under member.inventory.*

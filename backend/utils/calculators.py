@@ -128,9 +128,9 @@ def analyze_profile(profile_data: dict, uuid: str) -> dict:
       fairy      → member.player_data.fairy_souls_collected       (v1: member.fairy_souls_collected)
       deaths     → member.player_data.death_count (int)           (v1: member.death_count)
     """
-    members   = profile_data.get("members", {})
+    members   = profile_data.get("members") or {}
     clean_uuid: str = uuid.replace("-", "")
-    member: dict[str, Any] = members.get(clean_uuid, {})
+    member: dict[str, Any] = (members.get(clean_uuid) or {})
 
     if not member:
         return {"error": "Player data not found in profile"}
@@ -216,7 +216,7 @@ def analyze_profile(profile_data: dict, uuid: str) -> dict:
     else:
         _dd = player_data_v2.get("deaths")
         if isinstance(_dd, dict):
-            deaths = sum(_dd.values())
+            deaths = sum(v for v in _dd.values() if isinstance(v, (int, float)))
         elif isinstance(_dd, (int, float)):
             deaths = int(_dd)
         else:
@@ -224,9 +224,11 @@ def analyze_profile(profile_data: dict, uuid: str) -> dict:
 
     # ── Collections ───────────────────────────────────────────────────────
     raw_collections: dict = member.get("collection") or {}
-    sorted_cols = sorted(raw_collections.items(), key=lambda x: x[1], reverse=True)
+    # Guard against None/non-numeric values that would crash sort
+    safe_cols = [(cid, int(cnt)) for cid, cnt in raw_collections.items() if isinstance(cnt, (int, float)) and cnt is not None]
+    sorted_cols = sorted(safe_cols, key=lambda x: x[1], reverse=True)
     collections = [
-        {"id": cid, "name": _format_name(cid), "count": int(cnt)}
+        {"id": cid, "name": _format_name(cid), "count": cnt}
         for cid, cnt in sorted_cols[:12]
     ]
 
