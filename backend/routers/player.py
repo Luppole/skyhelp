@@ -11,7 +11,10 @@ try:
 except ImportError:
     HAS_NBTLIB = False
 
-from ..utils.hypixel import get_player_uuid, get_player_data, get_skyblock_profiles, get_server_api_key
+from ..utils.hypixel import (
+    get_player_uuid, get_player_data, get_skyblock_profiles,
+    get_player_auctions, get_profile_auctions, get_server_api_key,
+)
 from ..utils.calculators import analyze_profile
 from ..limiter import limiter
 
@@ -307,4 +310,63 @@ async def networth(
         "ec_items":    sorted(ec_valued,   key=lambda x: x["value"], reverse=True)[:30],
         "ward_items":  sorted(ward_valued, key=lambda x: x["value"], reverse=True)[:20],
         "minion_count": minion_count,
+    }
+
+
+@router.get("/{username}/auctions")
+@limiter.limit("15/minute")
+async def player_auction_list(
+    request: Request,
+    username: str,
+    profile_id: Optional[str] = None,
+    x_api_key: Optional[str] = Header(None, alias="x-api-key"),
+):
+    """
+    Active AH auctions for a player (or a specific profile).
+    Uses  GET /skyblock/auction?player=UUID  or  ?profile=PROFILE_ID
+    """
+    api_key = _resolve_key(x_api_key)
+
+    try:
+        uuid = await get_player_uuid(username)
+    except Exception:
+        raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
+    if not uuid:
+        raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
+
+    try:
+        if profile_id:
+            raw = await get_profile_auctions(api_key, profile_id)
+        else:
+            raw = await get_player_auctions(api_key, uuid)
+    except ValueError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    now_ms = __import__("time").time() * 1000
+    auctions = []
+    for a in raw.get("auctions", []):
+        end_ms    = a.get("end", 0)
+        time_left = max(0, int((end_ms - now_ms) / 1000))
+        auctions.append({
+            "uuid":          a.get("uuid"),
+            "item_name":     a.get("item_name", "Unknown"),
+            "tier":          a.get("tier", "COMMON"),
+            "category":      a.get("category", "misc"),
+            "starting_bid":  a.get("starting_bid", 0),
+            "highest_bid":   a.get("highest_bid_amount", 0),
+            "bin":           a.get("bin", False),
+            "claimed":       a.get("claimed", False),
+            "bids":          len(a.get("bids", [])),
+            "end_ms":        end_ms,
+            "time_left_s":   time_left,
+        })
+
+    # Sort: active (unclaimed) first, then by highest bid desc
+    auctions.sort(key=lambda x: (x["claimed"], -x["highest_bid"]))
+
+    return {
+        "username": username,
+        "uuid":     uuid,
+        "count":    len(auctions),
+        "auctions": auctions,
     }

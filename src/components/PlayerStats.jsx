@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { SkeletonCard } from './ui/Skeleton';
 import PageHeader from './ui/PageHeader';
-import { fetchPlayer, fetchProfileStats, formatCoins } from '../utils/api';
+import { fetchPlayer, fetchProfileStats, fetchPlayerAuctions, formatCoins } from '../utils/api';
 import { useUserData } from '../hooks/useUserData';
 
 const SKILL_ICONS = {
@@ -19,30 +19,46 @@ const SLAYER_ICONS = {
 const RADAR_SKILLS = ['farming', 'mining', 'combat', 'foraging', 'fishing', 'enchanting', 'alchemy'];
 
 export default function PlayerStats() {
-  const [username, setUsername]         = useUserData('player_username', '');
+  const [username, setUsername]         = useUserData('player_ign', '');
   const [data, setData]                 = useState(null);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState('');
   const [selectedProfile, setSelected]  = useState(null);
   const [profileStats, setProfileStats] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [auctions, setAuctions]         = useState(null);
+  const [auctionsLoading, setAuctionsLoading] = useState(false);
 
   async function lookup() {
     if (!username.trim()) return;
-    setLoading(true); setError(''); setData(null); setProfileStats(null);
+    setLoading(true); setError(''); setData(null); setProfileStats(null); setAuctions(null);
     try {
       const result = await fetchPlayer(username.trim());
       setData(result);
       setProfileStats(result.active_profile?.stats ?? null);
       setSelected(result.active_profile?.profile_id ?? null);
+      // Load auctions in parallel (non-blocking)
+      loadAuctions(username.trim(), null);
     } catch (e) { setError(e.message); }
     finally { setLoading(false); }
+  }
+
+  async function loadAuctions(user, profileId) {
+    setAuctionsLoading(true);
+    try {
+      const result = await fetchPlayerAuctions(user, profileId);
+      setAuctions(result);
+    } catch { setAuctions(null); }
+    finally { setAuctionsLoading(false); }
   }
 
   async function switchProfile(profileId) {
     setSelected(profileId); setProfileLoading(true);
     try {
-      const result = await fetchProfileStats(username, profileId);
+      const [result] = await Promise.all([
+        fetchProfileStats(username, profileId),
+        loadAuctions(username, profileId),
+      ]);
       if (result.error) {
         setError(result.error);
         setProfileStats(null);
@@ -188,10 +204,74 @@ export default function PlayerStats() {
               Profile stats are unavailable for this profile. Try another profile or refresh.
             </div>
           )}
+
+          {/* Active Auctions */}
+          {(auctionsLoading || auctions) && (
+            <div className="card" style={{ marginTop: 4 }}>
+              <div className="card__title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>🔨 Active Auctions</span>
+                {auctions && <span className="text-muted" style={{ fontSize: 11, fontWeight: 400 }}>{auctions.count} listing{auctions.count !== 1 ? 's' : ''}</span>}
+              </div>
+              {auctionsLoading && <div className="spinner" style={{ margin: '20px auto' }} />}
+              {auctions && !auctionsLoading && auctions.auctions?.length === 0 && (
+                <div className="text-muted" style={{ fontSize: 13, padding: '8px 0' }}>No active auctions.</div>
+              )}
+              {auctions && !auctionsLoading && auctions.auctions?.length > 0 && (
+                <div className="table-wrap" style={{ border: 'none' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Item</th>
+                        <th>Type</th>
+                        <th>Tier</th>
+                        <th>Top Bid</th>
+                        <th>Bids</th>
+                        <th>Time Left</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auctions.auctions.map(a => (
+                        <tr key={a.uuid} style={{ opacity: a.claimed ? 0.45 : 1 }}>
+                          <td style={{ fontWeight: 600, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {a.item_name}
+                          </td>
+                          <td>
+                            {a.bin
+                              ? <span className="tag tag-blue" style={{ fontSize: 10 }}>BIN</span>
+                              : <span className="tag" style={{ fontSize: 10 }}>AUC</span>}
+                          </td>
+                          <td>
+                            <span className={`tag rarity-tag rarity-${(a.tier || 'common').toLowerCase()}`} style={{ fontSize: 10 }}>
+                              {a.tier}
+                            </span>
+                          </td>
+                          <td style={{ color: 'var(--gold)', fontWeight: 700 }}>
+                            {formatCoins(a.highest_bid || a.starting_bid)}
+                          </td>
+                          <td className="text-muted">{a.bids}</td>
+                          <td className="text-muted" style={{ fontSize: 11 }}>
+                            {a.claimed ? '✅ Claimed' : formatTimeLeft(a.time_left_s)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function formatTimeLeft(secs) {
+  if (secs <= 0) return 'Ended';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
 }
 
 function StatRow({ label, value, gold }) {

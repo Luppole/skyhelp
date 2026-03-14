@@ -4,7 +4,7 @@ from typing import Optional
 from .cache import cached
 
 HYPIXEL_BASE = "https://api.hypixel.net"
-PLAYERDB_BASE = "https://playerdb.co/api/player/minecraft"
+MOJANG_BASE   = "https://api.mojang.com"
 
 # Loaded once from env (set by main.py calling load_dotenv before import)
 _SERVER_API_KEY: str = ""
@@ -67,15 +67,16 @@ async def get_player_uuid(username: str) -> Optional[str]:
 
 
 async def _fetch_uuid(username: str) -> Optional[str]:
+    """Resolve a Minecraft username to UUID via the official Mojang API."""
     async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(f"{PLAYERDB_BASE}/{username}")
-        if r.status_code == 404:
+        r = await client.get(f"{MOJANG_BASE}/users/profiles/minecraft/{username}")
+        if r.status_code in (204, 404):
             return None
-        r.raise_for_status()
+        if not r.is_success:
+            raise ValueError(f"Mojang API error {r.status_code} for '{username}'")
         data = r.json()
-        if not data.get("success"):
-            return None
-        return data["data"]["player"]["id"]
+        # Mojang returns UUID without dashes — Hypixel accepts both formats
+        return data.get("id")
 
 
 async def get_player_data(api_key: str, uuid: str) -> dict:
@@ -86,6 +87,30 @@ async def get_player_data(api_key: str, uuid: str) -> dict:
         )
         if not r.is_success:
             raise ValueError(f"Hypixel player error: {_hypixel_error(r)}")
+        return r.json()
+
+
+async def get_player_auctions(api_key: str, uuid: str) -> dict:
+    """Fetch a player's active AH auctions by UUID (not cached — changes frequently)."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(
+            f"{HYPIXEL_BASE}/skyblock/auction",
+            params={"key": api_key, "player": uuid},
+        )
+        if not r.is_success:
+            raise ValueError(f"Hypixel player auctions error: {_hypixel_error(r)}")
+        return r.json()
+
+
+async def get_profile_auctions(api_key: str, profile_id: str) -> dict:
+    """Fetch all active auctions for a SkyBlock profile ID."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.get(
+            f"{HYPIXEL_BASE}/skyblock/auction",
+            params={"key": api_key, "profile": profile_id},
+        )
+        if not r.is_success:
+            raise ValueError(f"Hypixel profile auctions error: {_hypixel_error(r)}")
         return r.json()
 
 

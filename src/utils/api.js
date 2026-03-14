@@ -101,6 +101,8 @@ export const fetchProfileStats = (username, profileId, options = {}) =>
   request(`/player/${username}/profile/${profileId}`, options);
 export const fetchNetWorth     = (username, profileId, options = {}) =>
   request(`/player/${username}/networth${profileId ? `?profile_id=${profileId}` : ''}`, options);
+export const fetchPlayerAuctions = (username, profileId, options = {}) =>
+  request(`/player/${username}/auctions${profileId ? `?profile_id=${profileId}` : ''}`, options);
 
 // Garden / Farming
 export const fetchEnchantPrices = (options = {}) => request('/garden/enchant-prices', options);

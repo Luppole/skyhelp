@@ -21,7 +21,7 @@ const LABELS = {
 };
 
 export default function NetWorth() {
-  const [username, setUsername]   = useUserData('networth_username', '');
+  const [username, setUsername]   = useUserData('player_ign', '');
   const [profileId, setProfileId] = useState('');
   const [data, setData]           = useState(null);
   const [loading, setLoading]     = useState(false);
