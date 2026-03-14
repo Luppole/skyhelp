@@ -1,4 +1,5 @@
 import re
+import asyncio
 import gzip
 import base64
 import io
@@ -36,7 +37,7 @@ def _resolve_key(header_key: Optional[str]) -> str:
 
 
 def _decode_inventory(data_b64: str) -> list[dict]:
-    """Decode base64-gzipped NBT inventory to list of {id, count, name}."""
+    """Decode base64-gzipped NBT inventory → list of {id, count, name}."""
     if not HAS_NBTLIB or not data_b64:
         return []
     try:
@@ -45,7 +46,7 @@ def _decode_inventory(data_b64: str) -> list[dict]:
             raw = gzip.decompress(raw)
         except Exception:
             pass
-        nbt = nbtlib.load(fileobj=io.BytesIO(raw))
+        nbt   = nbtlib.load(fileobj=io.BytesIO(raw))
         items = []
         for item in nbt.get("", {}).get("i", []):
             if not item:
@@ -53,14 +54,13 @@ def _decode_inventory(data_b64: str) -> list[dict]:
             tag = item.get("tag", {})
             if not tag:
                 continue
-            extra = tag.get("ExtraAttributes", {})
+            extra   = tag.get("ExtraAttributes", {})
             item_id = str(extra.get("id", "")).strip()
-            count = int(item.get("Count", 1))
+            count   = int(item.get("Count", 1))
             if not item_id:
                 continue
-            # Extract human-readable display name, stripping Minecraft §colour codes
-            display = tag.get("display") or {}
-            raw_name = str(display.get("Name", ""))
+            display    = tag.get("display") or {}
+            raw_name   = str(display.get("Name", ""))
             clean_name = _COLOR_STRIP.sub("", raw_name).strip() or None
             items.append({"id": item_id, "count": count, "name": clean_name})
         return items
@@ -71,52 +71,54 @@ def _decode_inventory(data_b64: str) -> list[dict]:
 # ── Known approximate market values ──────────────────────────────────────────
 _KNOWN_VALUES: dict[str, float] = {
     # Swords / Melee
-    "ASPECT_OF_THE_DRAGONS":   3_500_000,
-    "SHADOW_FURY":            12_000_000,
-    "HYPERION":              700_000_000,
-    "SCYLLA":                400_000_000,
-    "VALKYRIE":              300_000_000,
-    "TERMINATOR":            550_000_000,
-    "NECRON_BLADE":          200_000_000,
-    "LIVID_DAGGER":            8_000_000,
-    "PIGMAN_SWORD":            2_500_000,
-    "ASPECT_OF_THE_END":         600_000,
-    "GIANTS_SWORD":           15_000_000,
-    "FLOWER_OF_TRUTH":         5_000_000,
-    "ATOMSPLIT_KATANA":       25_000_000,
-    "VORPAL_KATANA":           8_000_000,
-    "LAST_BREATH":            50_000_000,
-    "REAPER_SCYTHE":         100_000_000,
-    "MIDAS_SWORD":           200_000_000,
-    "MIDAS_STAFF":           120_000_000,
-    "DREADLORD_SWORD":           500_000,
-    "ZOMBIE_SWORD":              800_000,
-    "SHREDDER":                1_000_000,
+    "ASPECT_OF_THE_DRAGONS":    3_500_000,
+    "SHADOW_FURY":             12_000_000,
+    "HYPERION":               700_000_000,
+    "SCYLLA":                 400_000_000,
+    "VALKYRIE":               300_000_000,
+    "TERMINATOR":             550_000_000,
+    "NECRON_BLADE":           200_000_000,
+    "LIVID_DAGGER":             8_000_000,
+    "PIGMAN_SWORD":             2_500_000,
+    "ASPECT_OF_THE_END":          600_000,
+    "GIANTS_SWORD":            15_000_000,
+    "FLOWER_OF_TRUTH":          5_000_000,
+    "ATOMSPLIT_KATANA":        25_000_000,
+    "VORPAL_KATANA":            8_000_000,
+    "LAST_BREATH":             50_000_000,
+    "REAPER_SCYTHE":          100_000_000,
+    "MIDAS_SWORD":            200_000_000,
+    "MIDAS_STAFF":            120_000_000,
+    "DREADLORD_SWORD":            500_000,
+    "ZOMBIE_SWORD":               800_000,
+    "SHREDDER":                 1_000_000,
+    "SOUL_WHIP":                3_000_000,
     # Bows
-    "JUJU_SHORTBOW":          50_000_000,
-    "HURRICANE_BOW":           2_000_000,
-    # Wands / Staves
-    "SOUL_WHIP":               3_000_000,
+    "JUJU_SHORTBOW":           50_000_000,
+    "HURRICANE_BOW":            2_000_000,
+    # Wand / staff
+    "WAND_OF_RESTORATION":        800_000,
+    "WAND_OF_HEALING":            300_000,
     # Necron armour
-    "NECRON_HANDLE":          10_000_000,
-    "WITHER_HELMET":           5_000_000,
-    "WITHER_CHESTPLATE":       8_000_000,
-    "WITHER_LEGGINGS":         6_000_000,
-    "WITHER_BOOTS":            5_000_000,
-    "NECRON_HELMET":          25_000_000,
-    "NECRON_CHESTPLATE":      40_000_000,
-    "NECRON_LEGGINGS":        30_000_000,
-    "NECRON_BOOTS":           20_000_000,
+    "NECRON_HANDLE":           10_000_000,
+    "WITHER_HELMET":            5_000_000,
+    "WITHER_CHESTPLATE":        8_000_000,
+    "WITHER_LEGGINGS":          6_000_000,
+    "WITHER_BOOTS":             5_000_000,
+    "NECRON_HELMET":           25_000_000,
+    "NECRON_CHESTPLATE":       40_000_000,
+    "NECRON_LEGGINGS":         30_000_000,
+    "NECRON_BOOTS":            20_000_000,
     # Storm armour
-    "STORM_HELMET":           15_000_000,
-    "STORM_CHESTPLATE":       25_000_000,
-    "STORM_LEGGINGS":         18_000_000,
-    "STORM_BOOTS":            12_000_000,
+    "STORM_HELMET":            15_000_000,
+    "STORM_CHESTPLATE":        25_000_000,
+    "STORM_LEGGINGS":          18_000_000,
+    "STORM_BOOTS":             12_000_000,
     # Goldor armour
-    "GOLDOR_HELMET":           8_000_000,
-    "GOLDOR_CHESTPLATE":      12_000_000,
-    "GOLDOR_LEGGINGS":        10_000_000,
-    "GOLDOR_BOOTS":            7_000_000,
+    "GOLDOR_HELMET":            8_000_000,
+    "GOLDOR_CHESTPLATE":       12_000_000,
+    "GOLDOR_LEGGINGS":         10_000_000,
+    "GOLDOR_BOOTS":             7_000_000,
     # Dragon armours
     "SUPERIOR_DRAGON_HELMET":       3_000_000,
     "SUPERIOR_DRAGON_CHESTPLATE":   5_000_000,
@@ -147,56 +149,75 @@ _KNOWN_VALUES: dict[str, float] = {
     "PROTECTOR_DRAGON_LEGGINGS":      500_000,
     "PROTECTOR_DRAGON_BOOTS":         400_000,
     # Slayer armours
-    "ENDER_HELMET":            3_000_000,
-    "ENDER_CHESTPLATE":        5_000_000,
-    "ENDER_LEGGINGS":          4_000_000,
-    "ENDER_BOOTS":             3_000_000,
-    "BLAZE_HELMET":            2_000_000,
-    "BLAZE_CHESTPLATE":        3_000_000,
-    "BLAZE_LEGGINGS":          2_500_000,
-    "BLAZE_BOOTS":             2_000_000,
+    "ENDER_HELMET":             3_000_000,
+    "ENDER_CHESTPLATE":         5_000_000,
+    "ENDER_LEGGINGS":           4_000_000,
+    "ENDER_BOOTS":              3_000_000,
+    "BLAZE_HELMET":             2_000_000,
+    "BLAZE_CHESTPLATE":         3_000_000,
+    "BLAZE_LEGGINGS":           2_500_000,
+    "BLAZE_BOOTS":              2_000_000,
     # Accessories
-    "RECOMBOBULATOR_3000":    15_000_000,
-    "HEGEMONY_ARTIFACT":     200_000_000,
-    "WITHER_ARTIFACT":        50_000_000,
-    "WITHER_RELIC":           80_000_000,
-    "WITHER_SHIELD":          15_000_000,
-    "MANA_FLUX":              10_000_000,
-    "OVERFLUX_CAPACITOR":     25_000_000,
-    "PLASMA_BUCKET":         100_000_000,
-    "ENDER_RELIC":            30_000_000,
-    "ABICASE":                50_000_000,
-    "STONKS_TALISMAN":         3_000_000,
-    "MASTER_SKULL_TIER_7":   200_000_000,
-    # Materials
-    "GOLDEN_TALISMAN":        50_000_000,
-    "DUNGEON_CHEST_KEY":         200_000,
-    "NEW_YEAR_CAKE":           5_000_000,
+    "RECOMBOBULATOR_3000":     15_000_000,
+    "HEGEMONY_ARTIFACT":      200_000_000,
+    "WITHER_ARTIFACT":         50_000_000,
+    "WITHER_RELIC":            80_000_000,
+    "WITHER_SHIELD":           15_000_000,
+    "MANA_FLUX":               10_000_000,
+    "OVERFLUX_CAPACITOR":      25_000_000,
+    "PLASMA_BUCKET":          100_000_000,
+    "ENDER_RELIC":             30_000_000,
+    "ABICASE":                 50_000_000,
+    "STONKS_TALISMAN":          3_000_000,
+    "MASTER_SKULL_TIER_7":    200_000_000,
+    # Special
+    "GOLDEN_TALISMAN":         50_000_000,
+    "DUNGEON_CHEST_KEY":          200_000,
+    "NEW_YEAR_CAKE":            5_000_000,
 }
 
 # ── Pet values ────────────────────────────────────────────────────────────────
 PET_BASE_VALUES: dict[str, dict[str, float]] = {
-    "TIGER":        {"COMMON": 100_000, "UNCOMMON": 500_000, "RARE": 2_000_000, "EPIC": 8_000_000,   "LEGENDARY": 50_000_000},
-    "LION":         {"COMMON": 50_000,  "UNCOMMON": 200_000, "RARE": 1_000_000, "EPIC": 4_000_000,   "LEGENDARY": 20_000_000},
-    "ENDER DRAGON": {"EPIC": 100_000_000, "LEGENDARY": 300_000_000},
-    "GOLDEN DRAGON":{"LEGENDARY": 800_000_000},
-    "GRIFFIN":      {"RARE": 2_000_000, "EPIC": 10_000_000, "LEGENDARY": 80_000_000},
-    "ENDERMAN":     {"UNCOMMON": 300_000, "RARE": 1_000_000, "EPIC": 4_000_000, "LEGENDARY": 15_000_000},
-    "BLAZE":        {"UNCOMMON": 200_000, "RARE": 800_000,   "EPIC": 3_000_000, "LEGENDARY": 10_000_000},
-    "BEE":          {"UNCOMMON": 150_000, "RARE": 600_000,   "EPIC": 2_000_000, "LEGENDARY": 8_000_000},
-    "WOLF":         {"UNCOMMON": 200_000, "RARE": 700_000,   "EPIC": 2_500_000, "LEGENDARY": 10_000_000},
-    "SPIDER":       {"UNCOMMON": 150_000, "RARE": 500_000,   "EPIC": 2_000_000, "LEGENDARY": 7_000_000},
-    "ZOMBIE":       {"UNCOMMON": 100_000, "RARE": 400_000,   "EPIC": 1_500_000, "LEGENDARY": 5_000_000},
-    "HORSE":        {"RARE": 500_000,  "EPIC": 2_000_000,  "LEGENDARY": 8_000_000},
-    "JERRY":        {"LEGENDARY": 200_000_000},
+    "TIGER":         {"COMMON": 100_000, "UNCOMMON": 500_000, "RARE": 2_000_000, "EPIC": 8_000_000,   "LEGENDARY": 50_000_000},
+    "LION":          {"COMMON": 50_000,  "UNCOMMON": 200_000, "RARE": 1_000_000, "EPIC": 4_000_000,   "LEGENDARY": 20_000_000},
+    "ENDER DRAGON":  {"EPIC": 100_000_000, "LEGENDARY": 300_000_000},
+    "GOLDEN DRAGON": {"LEGENDARY": 800_000_000},
+    "GRIFFIN":       {"RARE": 2_000_000,  "EPIC": 10_000_000,  "LEGENDARY": 80_000_000},
+    "ENDERMAN":      {"UNCOMMON": 300_000, "RARE": 1_000_000,  "EPIC": 4_000_000, "LEGENDARY": 15_000_000},
+    "BLAZE":         {"UNCOMMON": 200_000, "RARE": 800_000,    "EPIC": 3_000_000, "LEGENDARY": 10_000_000},
+    "BEE":           {"UNCOMMON": 150_000, "RARE": 600_000,    "EPIC": 2_000_000, "LEGENDARY": 8_000_000},
+    "WOLF":          {"UNCOMMON": 200_000, "RARE": 700_000,    "EPIC": 2_500_000, "LEGENDARY": 10_000_000},
+    "SPIDER":        {"UNCOMMON": 150_000, "RARE": 500_000,    "EPIC": 2_000_000, "LEGENDARY": 7_000_000},
+    "ZOMBIE":        {"UNCOMMON": 100_000, "RARE": 400_000,    "EPIC": 1_500_000, "LEGENDARY": 5_000_000},
+    "HORSE":         {"RARE": 500_000,    "EPIC": 2_000_000,   "LEGENDARY": 8_000_000},
+    "JERRY":         {"LEGENDARY": 200_000_000},
 }
 
 
 def _estimate_pet_value(pet: dict) -> float:
     ptype = pet.get("type", "").upper().replace("_", " ")
-    tier = pet.get("tier", "COMMON").upper()
-    tiers = PET_BASE_VALUES.get(ptype, {})
-    return tiers.get(tier, 50_000)
+    tier  = pet.get("tier", "COMMON").upper()
+    return PET_BASE_VALUES.get(ptype, {}).get(tier, 50_000)
+
+
+# ── Internal helpers ──────────────────────────────────────────────────────────
+
+async def _safe_player_data(api_key: str, uuid: str) -> dict:
+    """Fetch /v2/player — non-fatal, returns {} on error."""
+    try:
+        return await get_player_data(api_key, uuid)
+    except Exception:
+        return {}
+
+
+def _find_active_profile(profiles: list[dict], clean_uuid: str) -> Optional[dict]:
+    """Return the most-recently-saved profile from a profiles list."""
+    best, latest = None, 0
+    for p in profiles:
+        save = p.get("members", {}).get(clean_uuid, {}).get("last_save", 0)
+        if save > latest:
+            latest, best = save, p
+    return best or next((p for p in profiles if p.get("selected")), None)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -217,57 +238,60 @@ async def player_lookup(
     if not uuid:
         raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
 
-    try:
-        profiles_data = await get_skyblock_profiles(api_key, uuid)
-    except ValueError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Hypixel profiles error: {e}")
-
-    try:
-        player_data = await get_player_data(api_key, uuid)
-    except Exception:
-        player_data = {}
-
-    profiles = profiles_data.get("profiles", []) or []
     clean_uuid = uuid.replace("-", "")
 
-    # Find most recently active profile
-    selected_profile = None
-    latest_save = 0
-    for p in profiles:
-        member = p.get("members", {}).get(clean_uuid, {})
-        save_time = member.get("last_save", 0)
-        if save_time > latest_save:
-            latest_save = save_time
-            selected_profile = p
-    if not selected_profile:
-        selected_profile = next((p for p in profiles if p.get("selected")), None)
+    # Fetch profiles list + general player data in parallel
+    try:
+        profiles_result, player_data_result = await asyncio.gather(
+            get_skyblock_profiles(api_key, uuid),
+            _safe_player_data(api_key, uuid),
+            return_exceptions=True,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Hypixel error: {e}")
 
-    analyzed = None
+    if isinstance(profiles_result, Exception):
+        raise HTTPException(status_code=502, detail=str(profiles_result))
+    player_data: dict = player_data_result if not isinstance(player_data_result, Exception) else {}
+
+    profiles: list = profiles_result.get("profiles", []) or []
+    active_stub     = _find_active_profile(profiles, clean_uuid)
+
+    # Fetch full profile data (includes complete inventory + player_data) separately
+    # because /v2/skyblock/profiles may return trimmed member objects
+    full_member: dict = {}
     last_save_ms = 0
-    if selected_profile:
-        last_save_ms = selected_profile.get("members", {}).get(clean_uuid, {}).get("last_save", 0)
+    analyzed     = None
+
+    if active_stub:
         try:
-            analyzed = analyze_profile(selected_profile, uuid)
+            full_resp    = await get_skyblock_profile(api_key, active_stub["profile_id"])
+            full_profile = full_resp.get("profile") or full_resp
+            full_member  = (full_profile.get("members") or {}).get(clean_uuid, {})
+            last_save_ms = full_member.get("last_save", 0)
+            analyzed     = analyze_profile(full_profile, uuid)
         except Exception:
-            pass
+            # Fall back to stub data if single-profile fetch fails
+            try:
+                analyzed = analyze_profile(active_stub, uuid)
+            except Exception:
+                pass
 
     return {
-        "uuid": uuid,
+        "uuid":     uuid,
         "username": username,
-        "player": player_data.get("player", {}),
+        "player":   player_data.get("player", {}),
         "profiles": [
             {
                 "profile_id": p.get("profile_id"),
-                "cute_name": p.get("cute_name"),
-                "selected": p.get("selected", False),
+                "cute_name":  p.get("cute_name"),
+                "selected":   p.get("selected", False),
             }
             for p in profiles
         ],
         "active_profile": {
-            "cute_name":    selected_profile.get("cute_name")    if selected_profile else None,
-            "profile_id":   selected_profile.get("profile_id")   if selected_profile else None,
+            "cute_name":    active_stub.get("cute_name")    if active_stub else None,
+            "profile_id":   active_stub.get("profile_id")   if active_stub else None,
             "last_save_ms": last_save_ms,
             "stats":        analyzed,
         },
@@ -292,11 +316,11 @@ async def profile_stats(
         raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
 
     try:
-        profile_data = await get_skyblock_profile(api_key, profile_id)
+        full_resp = await get_skyblock_profile(api_key, profile_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    target = profile_data.get("profile") or profile_data
+    target = full_resp.get("profile") or full_resp
     if not target:
         raise HTTPException(status_code=404, detail="Profile not found")
 
@@ -304,11 +328,10 @@ async def profile_stats(
         stats = analyze_profile(target, uuid)
         error = None
     except Exception as exc:
-        stats = None
-        error = str(exc)
+        stats, error = None, str(exc)
 
-    clean_uuid = uuid.replace("-", "")
-    last_save_ms = target.get("members", {}).get(clean_uuid, {}).get("last_save", 0)
+    clean_uuid   = uuid.replace("-", "")
+    last_save_ms = (target.get("members") or {}).get(clean_uuid, {}).get("last_save", 0)
 
     return {
         "profile_id":   profile_id,
@@ -327,7 +350,7 @@ async def networth(
     profile_id: Optional[str] = None,
     x_api_key: Optional[str] = Header(None, alias="x-api-key"),
 ):
-    """Estimate a player's net worth across all storage locations."""
+    """Estimate a player's net worth across ALL storage locations."""
     api_key = _resolve_key(x_api_key)
 
     try:
@@ -337,35 +360,50 @@ async def networth(
     if not uuid:
         raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
 
-    if profile_id:
-        try:
-            profile_data = await get_skyblock_profile(api_key, profile_id)
-        except Exception as e:
-            raise HTTPException(status_code=502, detail=str(e))
-        profile = profile_data.get("profile") or profile_data
-    else:
+    # ── Resolve profile_id if not provided ────────────────────────────────
+    if not profile_id:
         try:
             profiles_data = await get_skyblock_profiles(api_key, uuid)
         except Exception as e:
             raise HTTPException(status_code=502, detail=str(e))
-        profiles = profiles_data.get("profiles", []) or []
-        profile = None
-        latest = 0
-        for p in profiles:
-            m = p.get("members", {}).get(uuid.replace("-", ""), {})
-            t = m.get("last_save", 0)
-            if t > latest:
-                latest = t
-                profile = p
-        if not profile:
-            profile = next((p for p in profiles if p.get("selected")), None)
+        profiles      = profiles_data.get("profiles", []) or []
+        active_stub   = _find_active_profile(profiles, uuid.replace("-", ""))
+        if not active_stub:
+            raise HTTPException(status_code=404, detail="No profile found")
+        profile_id = active_stub["profile_id"]
 
+    # ── Always fetch FULL single-profile data (includes inventory NBT) ────
+    try:
+        full_resp = await get_skyblock_profile(api_key, profile_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    profile = full_resp.get("profile") or full_resp
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
 
-    member = profile.get("members", {}).get(uuid.replace("-", ""), {})
+    clean_uuid = uuid.replace("-", "")
+    member: dict = (profile.get("members") or {}).get(clean_uuid, {})
 
-    # ── Helpers ────────────────────────────────────────────────────────────
+    # ── Inventory helper ──────────────────────────────────────────────────
+    # v2: all inventory lives under member.inventory.*
+    # v1: flat on member
+    inv_v2: dict = member.get("inventory") or {}
+
+    def _inv_data(v2_key: str, v1_key: str) -> str:
+        """Return base64 data string trying v2 path then v1 fallback."""
+        node = inv_v2.get(v2_key) or member.get(v1_key) or {}
+        if isinstance(node, dict):
+            return node.get("data", "")
+        return ""
+
+    def _inv_data_v2_only(v2_key: str) -> str:
+        node = inv_v2.get(v2_key) or {}
+        if isinstance(node, dict):
+            return node.get("data", "")
+        return ""
+
+    # ── Price helper ──────────────────────────────────────────────────────
     def price_items(items: list[dict]) -> tuple[float, list[dict], list[dict]]:
         """Returns (total_value, valued_only, all_with_value_field)."""
         valued, all_ann = [], []
@@ -379,18 +417,23 @@ async def networth(
                 valued.append(ann)
         return total, valued, all_ann
 
-    inv_v2 = member.get("inventory") or {}
-
-    def _inv_data(v2_key: str, v1_key: str) -> str:
-        return (inv_v2.get(v2_key) or member.get(v1_key) or {}).get("data", "")
-
     # ── Coins ─────────────────────────────────────────────────────────────
+    # v2: member.currencies.coin_purse
+    # v1: member.coin_purse
     currencies_v2 = member.get("currencies") or {}
-    purse   = float(currencies_v2.get("coin_purse") or member.get("coin_purse") or member.get("purse") or 0)
+    purse = float(
+        currencies_v2.get("coin_purse")
+        or member.get("coin_purse")
+        or member.get("purse")
+        or 0
+    )
+
+    # Co-op banking lives at the profile level (not member level)
     banking = float((profile.get("banking") or {}).get("balance", 0) or 0)
 
     # ── Pets ──────────────────────────────────────────────────────────────
-    pets_raw  = (member.get("pets_data") or {}).get("pets", []) or []
+    # v2: member.pets_data.pets  |  v1: member.pets
+    pets_raw   = (member.get("pets_data") or {}).get("pets", []) or member.get("pets", []) or []
     pets_value = sum(_estimate_pet_value(p) for p in pets_raw)
     pets_list  = [
         {
@@ -402,37 +445,71 @@ async def networth(
         for p in sorted(pets_raw, key=_estimate_pet_value, reverse=True)[:20]
     ]
 
-    # ── Main inventory ─────────────────────────────────────────────────────
+    # ── Decode all inventory slots ────────────────────────────────────────
+
+    # Main 36-slot inventory
     inv_items  = _decode_inventory(_inv_data("inv_contents",         "inv_contents"))
+
+    # Ender chest (typically 9 pages × 54 slots — stored as one large NBT)
     ec_items   = _decode_inventory(_inv_data("ender_chest_contents", "ender_chest_contents"))
+
+    # Wardrobe (4 pages of armour sets)
     ward_items = _decode_inventory(_inv_data("wardrobe_contents",    "wardrobe_contents"))
 
-    inv_val,  inv_valued,  inv_all  = price_items(inv_items)
-    ec_val,   ec_valued,   ec_all   = price_items(ec_items)
-    ward_val, ward_valued, ward_all = price_items(ward_items)
+    # Talisman / accessory bag
+    # v2 name: bag_contents  |  v1 name: talisman_bag  |  alt: talismans
+    talisman_raw = (
+        _decode_inventory(_inv_data_v2_only("bag_contents"))
+        or _decode_inventory(_inv_data("talismans", "talisman_bag"))
+    )
 
-    # ── Backpack ───────────────────────────────────────────────────────────
-    bp_contents = inv_v2.get("backpack_contents") or member.get("backpack_contents") or {}
+    # Backpack contents — dict keyed by slot index, each {"data": base64}
     bp_raw: list[dict] = []
-    for slot_val in (bp_contents.values() if isinstance(bp_contents, dict) else []):
-        bp_raw.extend(_decode_inventory((slot_val or {}).get("data", "")))
-    bp_val, bp_valued, bp_all = price_items(bp_raw)
+    bp_contents = inv_v2.get("backpack_contents") or member.get("backpack_contents") or {}
+    if isinstance(bp_contents, dict):
+        for slot_val in bp_contents.values():
+            if isinstance(slot_val, dict):
+                bp_raw.extend(_decode_inventory(slot_val.get("data", "")))
 
-    # ── Personal vault (safe) ──────────────────────────────────────────────
+    # Personal vault (safe) — 5-slot personal storage
     vault_raw = _decode_inventory(_inv_data("personal_vault_contents", "personal_vault_contents"))
-    vault_val, vault_valued, vault_all = price_items(vault_raw)
 
-    # ── Talisman / Accessory bag ───────────────────────────────────────────
-    talisman_raw = _decode_inventory(_inv_data("talismans", "talisman_bag"))
+    # Fishing bag
+    fishing_raw = _decode_inventory(_inv_data("fishing_bag", "fishing_bag"))
+
+    # Potion bag
+    potion_raw = _decode_inventory(_inv_data("potion_bag", "potion_bag"))
+
+    # Quiver (arrows/bolts)
+    quiver_raw = _decode_inventory(_inv_data("quiver", "quiver"))
+
+    # Equipment (armour worn in non-armour slots — charms, necklace, belt, gloves)
+    equip_raw = _decode_inventory(_inv_data_v2_only("equipment_contents"))
+
+    # ── Price all inventory sources ───────────────────────────────────────
+    inv_val,      inv_valued,      inv_all      = price_items(inv_items)
+    ec_val,       ec_valued,       ec_all       = price_items(ec_items)
+    ward_val,     ward_valued,     ward_all     = price_items(ward_items)
     talisman_val, talisman_valued, talisman_all = price_items(talisman_raw)
+    bp_val,       bp_valued,       bp_all       = price_items(bp_raw)
+    vault_val,    vault_valued,    vault_all    = price_items(vault_raw)
+    fishing_val,  _,               fishing_all  = price_items(fishing_raw)
+    potion_val,   _,               potion_all   = price_items(potion_raw)
+    quiver_val,   _,               quiver_all   = price_items(quiver_raw)
+    equip_val,    _,               equip_all    = price_items(equip_raw)
 
-    # ── Minions ────────────────────────────────────────────────────────────
+    # ── Minions ───────────────────────────────────────────────────────────
     player_data_v2 = member.get("player_data") or {}
-    crafted = player_data_v2.get("crafted_generators") or member.get("crafted_generators") or []
-    minion_count = len(crafted)
+    crafted        = player_data_v2.get("crafted_generators") or member.get("crafted_generators") or []
+    minion_count   = len(crafted)
 
-    # ── Summary ────────────────────────────────────────────────────────────
-    total = purse + banking + pets_value + inv_val + ec_val + ward_val + bp_val + vault_val + talisman_val
+    # ── Net worth total ───────────────────────────────────────────────────
+    total = (
+        purse + banking + pets_value
+        + inv_val + ec_val + ward_val
+        + talisman_val + bp_val + vault_val
+        + fishing_val + potion_val + quiver_val + equip_val
+    )
 
     def _top(lst: list[dict], n: int) -> list[dict]:
         return sorted(lst, key=lambda x: x["value"], reverse=True)[:n]
@@ -448,22 +525,26 @@ async def networth(
             "inventory":   round(inv_val),
             "ender_chest": round(ec_val),
             "wardrobe":    round(ward_val),
+            "talismans":   round(talisman_val),
             "backpack":    round(bp_val),
             "vault":       round(vault_val),
-            "talismans":   round(talisman_val),
+            "fishing_bag": round(fishing_val),
+            "equipment":   round(equip_val),
         },
         "pets": pets_list,
         # Valued-only (backwards-compat with NetWorth.jsx)
-        "inv_items":  _top(inv_valued,  30),
-        "ec_items":   _top(ec_valued,   30),
-        "ward_items": _top(ward_valued, 20),
-        # All items including unknowns (for PlayerStats inventory display)
+        "inv_items":  _top(inv_valued,      30),
+        "ec_items":   _top(ec_valued,       30),
+        "ward_items": _top(ward_valued,     20),
+        # All items per slot (for PlayerStats inventory display)
         "inv_all":       _top(inv_all,       100),
         "ec_all":        _top(ec_all,        100),
         "ward_all":      _top(ward_all,      100),
+        "talisman_all":  _top(talisman_all,  100),
         "backpack_all":  _top(bp_all,        100),
         "vault_all":     _top(vault_all,      50),
-        "talisman_all":  _top(talisman_all,  100),
+        "fishing_all":   _top(fishing_all,    50),
+        "equipment_all": _top(equip_all,      20),
         "minion_count":  minion_count,
     }
 
@@ -487,14 +568,12 @@ async def player_auction_list(
         raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
 
     try:
-        if profile_id:
-            raw = await get_profile_auctions(api_key, profile_id)
-        else:
-            raw = await get_player_auctions(api_key, uuid)
+        raw = await get_profile_auctions(api_key, profile_id) if profile_id \
+              else await get_player_auctions(api_key, uuid)
     except ValueError as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    now_ms = __import__("time").time() * 1000
+    now_ms   = __import__("time").time() * 1000
     auctions = []
     for a in raw.get("auctions", []):
         end_ms    = a.get("end", 0)

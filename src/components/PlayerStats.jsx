@@ -71,6 +71,8 @@ const INV_TABS = [
   { id: 'backpack',  label: '🎽 Backpack',     field: 'backpack_all' },
   { id: 'vault',     label: '🔒 Vault',        field: 'vault_all' },
   { id: 'talismans', label: '💎 Talismans',    field: 'talisman_all' },
+  { id: 'fishing',   label: '🎣 Fishing Bag',  field: 'fishing_all' },
+  { id: 'equipment', label: '🛡️ Equipment',    field: 'equipment_all' },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
