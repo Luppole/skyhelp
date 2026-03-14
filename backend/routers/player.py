@@ -1,16 +1,11 @@
 import re
+import struct
 import asyncio
 import gzip
 import base64
 import io
 from fastapi import APIRouter, HTTPException, Request, Header
 from typing import Optional
-
-try:
-    import nbtlib
-    HAS_NBTLIB = True
-except ImportError:
-    HAS_NBTLIB = False
 
 from ..utils.hypixel import (
     get_player_uuid, get_player_data,
@@ -25,42 +20,124 @@ router = APIRouter(prefix="/player", tags=["player"])
 
 _COLOR_STRIP = re.compile(r'§.')
 
+# ── Minimal binary NBT parser (no external dependency) ────────────────────────
+# Only parses what Hypixel inventory NBT needs; skips over everything else.
 
-def _resolve_key(header_key: Optional[str]) -> str:
-    key = get_server_api_key() or header_key
-    if not key:
-        raise HTTPException(
-            status_code=401,
-            detail="No Hypixel API key configured. Set HYPIXEL_API_KEY in .env or pass X-Api-Key header.",
-        )
-    return key
+_TAG_END        = 0
+_TAG_BYTE       = 1
+_TAG_SHORT      = 2
+_TAG_INT        = 3
+_TAG_LONG       = 4
+_TAG_FLOAT      = 5
+_TAG_DOUBLE     = 6
+_TAG_BYTE_ARRAY = 7
+_TAG_STRING     = 8
+_TAG_LIST       = 9
+_TAG_COMPOUND   = 10
+_TAG_INT_ARRAY  = 11
+_TAG_LONG_ARRAY = 12
+
+_SCALAR_SIZES = {
+    _TAG_BYTE: 1, _TAG_SHORT: 2, _TAG_INT: 4,
+    _TAG_LONG: 8, _TAG_FLOAT: 4, _TAG_DOUBLE: 8,
+}
+
+
+def _nbt_read(buf: memoryview, pos: int, tag: int):
+    """Read a single NBT payload (no name) starting at buf[pos].
+    Returns (value, new_pos). Raises struct.error on truncated data.
+    Compounds are returned as dicts; lists as Python lists.
+    Strings and scalars as Python native types.
+    Byte/Int/Long arrays returned as None (we skip them).
+    """
+    if tag in _SCALAR_SIZES:
+        sz = _SCALAR_SIZES[tag]
+        val = int.from_bytes(buf[pos:pos + sz], 'big', signed=True)
+        return val, pos + sz
+
+    if tag == _TAG_STRING:
+        slen = struct.unpack_from('>H', buf, pos)[0]
+        pos += 2
+        return bytes(buf[pos:pos + slen]).decode('utf-8', errors='replace'), pos + slen
+
+    if tag == _TAG_BYTE_ARRAY:
+        alen = struct.unpack_from('>i', buf, pos)[0]
+        return None, pos + 4 + alen
+
+    if tag == _TAG_INT_ARRAY:
+        alen = struct.unpack_from('>i', buf, pos)[0]
+        return None, pos + 4 + alen * 4
+
+    if tag == _TAG_LONG_ARRAY:
+        alen = struct.unpack_from('>i', buf, pos)[0]
+        return None, pos + 4 + alen * 8
+
+    if tag == _TAG_LIST:
+        elem_tag = buf[pos]; pos += 1
+        count    = struct.unpack_from('>i', buf, pos)[0]; pos += 4
+        result   = []
+        for _ in range(count):
+            val, pos = _nbt_read(buf, pos, elem_tag)
+            result.append(val)
+        return result, pos
+
+    if tag == _TAG_COMPOUND:
+        result = {}
+        while True:
+            child_tag = buf[pos]; pos += 1
+            if child_tag == _TAG_END:
+                break
+            nlen = struct.unpack_from('>H', buf, pos)[0]; pos += 2
+            name = bytes(buf[pos:pos + nlen]).decode('utf-8', errors='replace'); pos += nlen
+            val, pos = _nbt_read(buf, pos, child_tag)
+            result[name] = val
+        return result, pos
+
+    # Unknown tag — we can't safely skip, so raise to abort
+    raise ValueError(f"Unknown NBT tag {tag}")
+
+
+def _parse_nbt_inventory(data: bytes) -> list:
+    """Parse raw (decompressed) Hypixel inventory NBT.
+    Returns the list stored under the root compound's 'i' key, or [].
+    """
+    if not data:
+        return []
+    buf = memoryview(data)
+    root_tag = buf[0]
+    if root_tag != _TAG_COMPOUND:
+        return []
+    # Skip root name
+    pos = 1
+    nlen = struct.unpack_from('>H', buf, pos)[0]; pos += 2 + nlen
+    root, _ = _nbt_read(buf, pos, _TAG_COMPOUND)
+    return root.get("i", [])
 
 
 def _decode_inventory(data_b64: str) -> list[dict]:
-    """Decode base64-gzipped NBT inventory → list of {id, count, name}."""
-    if not HAS_NBTLIB or not data_b64:
+    """Decode a base64-gzipped Hypixel NBT inventory blob → list[{id, count, name}]."""
+    if not data_b64:
         return []
     try:
         raw = base64.b64decode(data_b64)
         try:
             raw = gzip.decompress(raw)
         except Exception:
-            pass
-        nbt   = nbtlib.load(fileobj=io.BytesIO(raw))
+            pass  # already uncompressed
         items = []
-        for item in nbt.get("", {}).get("i", []):
-            if not item:
+        for item in _parse_nbt_inventory(raw):
+            if not isinstance(item, dict):
                 continue
-            tag = item.get("tag", {})
-            if not tag:
+            tag   = item.get("tag")
+            if not isinstance(tag, dict):
                 continue
-            extra   = tag.get("ExtraAttributes", {})
-            item_id = str(extra.get("id", "")).strip()
-            count   = int(item.get("Count", 1))
+            extra   = tag.get("ExtraAttributes") or {}
+            item_id = str(extra.get("id", "") or "").strip()
             if not item_id:
                 continue
+            count      = int(item.get("Count", 1) or 1)
             display    = tag.get("display") or {}
-            raw_name   = str(display.get("Name", ""))
+            raw_name   = str(display.get("Name", "") or "")
             clean_name = _COLOR_STRIP.sub("", raw_name).strip() or None
             items.append({"id": item_id, "count": count, "name": clean_name})
         return items
