@@ -38,6 +38,7 @@ export default function AHSniper() {
     refreshInterval: refreshMs,
   });
 
+  const indexing = !!data && data.ready === false;
   const snipes = (data?.snipes ?? []).map(s => ({ ...s, item_id: s.item_id || s.item_name_id || '' }));
   const sorted = [...snipes].sort((a, b) => b[sortKey] - a[sortKey]);
 
@@ -57,8 +58,8 @@ export default function AHSniper() {
               </span>
             )}
             <div className="status-badge">
-              <span className="status-dot status-dot--green" />
-              {data ? `${data.snipes?.length ?? 0} snipes` : 'Loading…'}
+              <span className={`status-dot ${(!data || indexing) ? 'status-dot--yellow' : 'status-dot--green'}`} />
+              {!data ? 'Loading…' : indexing ? 'Indexing…' : `${data.snipes?.length ?? 0} snipes`}
             </div>
             <button className="btn-icon" onClick={reload} disabled={loading} title="Refresh">
               <RefreshCw size={14} className={loading ? 'spin' : ''} />
@@ -116,13 +117,19 @@ export default function AHSniper() {
 
       <div className="info-box" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <AlertTriangle size={14} />
-        Prices based on current AH index (refreshed every ~60s). Verify in-game before buying. Index age: {data ? `${Math.round(data.index_age_seconds)}s` : '—'}
+        Prices based on current AH index (refreshed every ~60s). Verify in-game before buying. Index age: {data?.index_age_seconds != null ? `${Math.round(data.index_age_seconds)}s` : '—'}
       </div>
 
       {error && <div className="error-box">{error}</div>}
 
       {loading && !data ? (
         <SkeletonTable rows={12} cols={6} />
+      ) : indexing && sorted.length === 0 && !loading ? (
+        <div className="empty-state">
+          <span className="empty-state-icon">Indexing…</span>
+          <span>Warming up the Auction House index.</span>
+          <span className="text-muted" style={{ fontSize: 12 }}>This can take ~10–30s on first load. Hit refresh or enable auto-refresh.</span>
+        </div>
       ) : sorted.length === 0 && !loading ? (
         <div className="empty-state">
           <span className="empty-state-icon">🎯</span>

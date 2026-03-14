@@ -1,3 +1,4 @@
+import asyncio
 import time
 import statistics
 from collections import defaultdict
@@ -39,11 +40,18 @@ async def search_auctions(
     bin_only: bool = Query(False),
 ):
     """Search ALL live auctions by item name from in-memory index."""
+    try:
+        await ah_index.ensure_fresh()
+    except asyncio.TimeoutError:
+        # Serverless cold start: don't fail the request outright; report warming up.
+        pass
+
     if not ah_index.ready:
         return {
             "ready": False,
             "count": 0,
             "index_age_seconds": None,
+            "error": ah_index.last_error,
             "auctions": [],
         }
 
@@ -69,12 +77,18 @@ async def sniper(
     Find BIN listings priced significantly below the median for that item.
     Uses the in-memory AH index — no extra Hypixel calls.
     """
+    try:
+        await ah_index.ensure_fresh()
+    except asyncio.TimeoutError:
+        pass
+
     if not ah_index.ready:
         return {
             "ready": False,
             "count": 0,
             "snipes": [],
             "index_age_seconds": None,
+            "error": ah_index.last_error,
         }
 
     # Gather all BIN auctions
