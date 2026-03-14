@@ -33,6 +33,8 @@ _ENCHANT_IDS: list[str] = [
     *[f"ENCHANTMENT_GREEN_THUMB_{i}" for i in range(1, 6)],
     # BPS
     *[f"ENCHANTMENT_SUGAR_RUSH_{i}"  for i in range(1, 4)],
+    # Pest Chance
+    *[f"ENCHANTMENT_CULTIVATING_{i}" for i in range(1, 11)],
 ]
 
 

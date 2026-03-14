@@ -24,14 +24,15 @@ const CROPS = [
 ];
 
 const GLOBAL_ENCHANTS = [
-  { label: 'Dedication',  key: 'dedication',  max: 4, type: 'fortune' },
-  { label: 'Harvesting',  key: 'harvesting',  max: 6, type: 'fortune' },
-  { label: 'Green Thumb', key: 'green_thumb', max: 5, type: 'fortune' },
-  { label: 'Sugar Rush',  key: 'sugar_rush',  max: 3, type: 'bps'     },
+  { label: 'Dedication',  key: 'dedication',  max: 4,  type: 'fortune' },
+  { label: 'Harvesting',  key: 'harvesting',  max: 6,  type: 'fortune' },
+  { label: 'Green Thumb', key: 'green_thumb', max: 5,  type: 'fortune' },
+  { label: 'Sugar Rush',  key: 'sugar_rush',  max: 3,  type: 'bps'     },
+  { label: 'Cultivating', key: 'cultivating', max: 10, type: 'pest'    },
 ];
 
 const DEDICATION_MULT = [0, 0.5, 0.75, 1.0, 2.0];
-const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
 const DEFAULT_SETUP = {
   farmingLevel: 1,
@@ -43,6 +44,10 @@ const DEFAULT_SETUP = {
 };
 
 // ── Calculation (pure JS, no backend) ────────────────────────────────────────
+
+function calcBPC(enchants) {
+  return enchants.cultivating ?? 0; // +1% Bonus Pest Chance per level
+}
 
 function calcSkillFF(level) {
   return Math.min(level, 50) * 4 + Math.max(0, level - 50) * 1;
@@ -146,17 +151,38 @@ function buildUpgrades(setup, prices) {
       name: `Sugar Rush ${ROMAN[lvl]}`,
       category: 'bps', crop: null,
       fromLevel: lvl - 1, toLevel: lvl,
-      ffGain: 0, bpsGain: 0.1,
+      ffGain: 0, bpsGain: 0.1, bpcGain: 0,
+      costCoins: Math.round(cost),
+      ffPerMillion: 0, bpcPerMillion: 0,
+      bzItemId: bzId, note: '~+0.1 BPS (Rancher\'s Boots)',
+    });
+  }
+
+  // 6. Cultivating (Pest Chance, I–X, +1% BPC per level)
+  const cultCurrent = enchants.cultivating ?? 0;
+  for (let lvl = cultCurrent + 1; lvl <= 10; lvl++) {
+    const bzId = `ENCHANTMENT_CULTIVATING_${lvl}`;
+    const cost = prices[bzId] ?? 0;
+    if (cost <= 0) continue;
+    upgrades.push({
+      id: `cultivating_${lvl}`,
+      name: `Cultivating ${ROMAN[lvl]}`,
+      category: 'pest', crop: null,
+      fromLevel: lvl - 1, toLevel: lvl,
+      ffGain: 0, bpsGain: 0, bpcGain: 1,
       costCoins: Math.round(cost),
       ffPerMillion: 0,
-      bzItemId: bzId, note: '~+0.1 BPS (Rancher\'s Boots)',
+      bpcPerMillion: 1 / cost * 1_000_000,
+      bzItemId: bzId, note: '+1% Bonus Pest Chance',
     });
   }
 
   const fortune = upgrades.filter(u => u.category === 'fortune')
     .sort((a, b) => b.ffPerMillion - a.ffPerMillion);
-  const bps = upgrades.filter(u => u.category === 'bps');
-  return [...fortune, ...bps];
+  const bps  = upgrades.filter(u => u.category === 'bps');
+  const pest = upgrades.filter(u => u.category === 'pest')
+    .sort((a, b) => b.bpcPerMillion - a.bpcPerMillion);
+  return [...fortune, ...bps, ...pest];
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
@@ -170,6 +196,18 @@ function ScoreBadge({ ffpm }) {
   return (
     <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: bg, color, whiteSpace: 'nowrap' }}>
       {ffpm.toFixed(1)} FF/M
+    </span>
+  );
+}
+
+function BpcBadge({ bpcpm }) {
+  const [bg, color] =
+    bpcpm >= 5  ? ['rgba(167,139,250,0.15)', '#a78bfa'] :
+    bpcpm >= 2  ? ['rgba(96,165,250,0.12)',  '#60a5fa'] :
+                  ['rgba(100,116,139,0.1)',  'var(--text-muted)'];
+  return (
+    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: bg, color, whiteSpace: 'nowrap' }}>
+      {bpcpm.toFixed(2)} %/M
     </span>
   );
 }
@@ -216,7 +254,8 @@ export default function FarmingUpgrades() {
 
   // Computed upgrades
   const upgrades = useMemo(() => buildUpgrades(setup, prices), [setup, prices]);
-  const skillFF  = calcSkillFF(setup.farmingLevel);
+  const skillFF   = calcSkillFF(setup.farmingLevel);
+  const currentBPC = calcBPC(setup.enchants);
 
   // Setters
   function setFarmingLevel(v) {
@@ -244,15 +283,18 @@ export default function FarmingUpgrades() {
   const visible = upgrades.filter(u => {
     if (tab === 'fortune' && u.category !== 'fortune') return false;
     if (tab === 'bps'     && u.category !== 'bps')     return false;
-    if (cropFilter !== 'All Crops' && u.crop && u.crop !== cropFilter) return false;
-    if (cropFilter !== 'All Crops' && !u.crop) return false;
+    if (tab === 'pest'    && u.category !== 'pest')     return false;
+    if (tab === 'fortune' && cropFilter !== 'All Crops' && u.crop && u.crop !== cropFilter) return false;
+    if (tab === 'fortune' && cropFilter !== 'All Crops' && !u.crop) return false;
     return true;
   });
 
   const fortuneCount = upgrades.filter(u => u.category === 'fortune').length;
   const bpsCount     = upgrades.filter(u => u.category === 'bps').length;
-  const totalFF   = upgrades.filter(u => u.category === 'fortune').reduce((s, u) => s + u.ffGain, 0);
-  const totalCost = upgrades.reduce((s, u) => s + u.costCoins, 0);
+  const pestCount    = upgrades.filter(u => u.category === 'pest').length;
+  const totalFF      = upgrades.filter(u => u.category === 'fortune').reduce((s, u) => s + u.ffGain, 0);
+  const totalCost    = upgrades.reduce((s, u) => s + u.costCoins, 0);
+  const availableBPC = upgrades.filter(u => u.category === 'pest').reduce((s, u) => s + u.bpcGain, 0);
 
   const bestMilestone = Math.max(1, ...Object.values(setup.milestones));
   const currentDedFF  = calcDedicationFF(setup.enchants.dedication ?? 0, bestMilestone);
@@ -358,7 +400,8 @@ export default function FarmingUpgrades() {
                     <div key={e.key}>
                       <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
                         {e.label}
-                        {e.type === 'bps' && <span className="tag tag-blue" style={{ fontSize: 9, marginLeft: 4, padding: '0 5px' }}>BPS</span>}
+                        {e.type === 'bps'  && <span className="tag tag-blue"  style={{ fontSize: 9, marginLeft: 4, padding: '0 5px' }}>BPS</span>}
+                        {e.type === 'pest' && <span className="tag tag-purple" style={{ fontSize: 9, marginLeft: 4, padding: '0 5px' }}>BPC</span>}
                       </label>
                       <LevelSelect value={setup.enchants[e.key] ?? 0} max={e.max} onChange={v => setEnchant(e.key, v)} />
                     </div>
@@ -387,16 +430,17 @@ export default function FarmingUpgrades() {
         {/* ── RIGHT PANEL: Results ──────────────────────────────────────── */}
         <div>
           {/* Summary tiles */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 16 }}>
             {[
               { label: 'Farming Level', value: setup.farmingLevel,   sub: `${skillFF} FF from skill` },
               { label: 'Dedication FF',  value: `${currentDedFF.toFixed(0)} FF`, sub: `tier ${bestMilestone} best crop` },
               { label: 'FF Available',   value: `+${totalFF.toFixed(0)}`,  sub: `${fortuneCount} upgrades`, gold: true },
+              { label: 'Pest Chance',    value: `${currentBPC}%`,           sub: availableBPC > 0 ? `+${availableBPC}% available` : 'maxed', purple: true },
               { label: 'Total Cost',     value: formatCoins(totalCost),     sub: 'to max all enchants' },
             ].map(s => (
               <div key={s.label} className="card" style={{ padding: '10px 12px', textAlign: 'center' }}>
                 <div className="text-muted" style={{ fontSize: 10, marginBottom: 2 }}>{s.label}</div>
-                <div style={{ fontWeight: 800, fontSize: 17, color: s.gold ? 'var(--gold)' : 'var(--text)' }}>{s.value}</div>
+                <div style={{ fontWeight: 800, fontSize: 17, color: s.gold ? 'var(--gold)' : s.purple ? '#a78bfa' : 'var(--text)' }}>{s.value}</div>
                 <div className="text-muted" style={{ fontSize: 10, marginTop: 1 }}>{s.sub}</div>
               </div>
             ))}
@@ -407,6 +451,7 @@ export default function FarmingUpgrades() {
             {[
               { id: 'fortune', label: `🌾 Fortune (${fortuneCount})` },
               { id: 'bps',     label: `⚡ BPS (${bpsCount})` },
+              { id: 'pest',    label: `🐛 Pest Chance (${pestCount})` },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
                 padding: '9px 16px', fontWeight: 700, fontSize: 13,
@@ -435,7 +480,7 @@ export default function FarmingUpgrades() {
           ) : visible.length === 0 ? (
             <div className="empty-state" style={{ marginTop: 30 }}>
               <span className="empty-state-icon">🌾</span>
-              <span>{fortuneCount === 0 ? 'All enchants maxed — nothing left to upgrade!' : 'No upgrades match this filter.'}</span>
+              <span>{fortuneCount === 0 && pestCount === 0 && bpsCount === 0 ? 'All enchants maxed — nothing left to upgrade!' : 'No upgrades match this filter.'}</span>
             </div>
           ) : (
             <div className="card" style={{ padding: 0 }}>
@@ -449,8 +494,10 @@ export default function FarmingUpgrades() {
                       <th>Level</th>
                       {tab === 'fortune' && <th>FF Gain</th>}
                       {tab === 'bps'     && <th>BPS ~Gain</th>}
+                      {tab === 'pest'    && <th>BPC Gain</th>}
                       <th>BZ Cost</th>
                       {tab === 'fortune' && <th>FF / M</th>}
+                      {tab === 'pest'    && <th>% / M</th>}
                       <th>Note</th>
                       <th></th>
                     </tr>
@@ -474,9 +521,15 @@ export default function FarmingUpgrades() {
                         {tab === 'bps' && (
                           <td><span style={{ color: '#60a5fa', fontWeight: 700 }}>+{u.bpsGain} BPS</span></td>
                         )}
+                        {tab === 'pest' && (
+                          <td><span style={{ color: '#a78bfa', fontWeight: 700 }}>+{u.bpcGain}%</span></td>
+                        )}
                         <td><span className="text-gold" style={{ fontWeight: 700 }}>{formatCoins(u.costCoins)}</span></td>
                         {tab === 'fortune' && (
                           <td>{u.ffPerMillion > 0 ? <ScoreBadge ffpm={u.ffPerMillion} /> : <span className="text-muted">—</span>}</td>
+                        )}
+                        {tab === 'pest' && (
+                          <td>{u.bpcPerMillion > 0 ? <BpcBadge bpcpm={u.bpcPerMillion} /> : <span className="text-muted">—</span>}</td>
                         )}
                         <td className="text-muted" style={{ fontSize: 11 }}>{u.note}</td>
                         <td>
@@ -491,12 +544,19 @@ export default function FarmingUpgrades() {
                   </tbody>
                 </table>
               </div>
-              {tab === 'fortune' && visible.length > 0 && (
+              {(tab === 'fortune' || tab === 'pest') && visible.length > 0 && (
                 <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
                   <span className="text-muted" style={{ fontSize: 12 }}>{visible.length} upgrades</span>
-                  <span style={{ fontSize: 12 }}>
-                    Total FF: <strong style={{ color: 'var(--green)' }}>+{visible.reduce((s, u) => s + u.ffGain, 0).toFixed(0)}</strong>
-                  </span>
+                  {tab === 'fortune' && (
+                    <span style={{ fontSize: 12 }}>
+                      Total FF: <strong style={{ color: 'var(--green)' }}>+{visible.reduce((s, u) => s + u.ffGain, 0).toFixed(0)}</strong>
+                    </span>
+                  )}
+                  {tab === 'pest' && (
+                    <span style={{ fontSize: 12 }}>
+                      Total BPC: <strong style={{ color: '#a78bfa' }}>+{visible.reduce((s, u) => s + u.bpcGain, 0)}%</strong>
+                    </span>
+                  )}
                   <span style={{ fontSize: 12 }}>
                     Total cost: <strong className="text-gold">{formatCoins(visible.reduce((s, u) => s + u.costCoins, 0))}</strong>
                   </span>
