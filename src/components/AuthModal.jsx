@@ -84,9 +84,8 @@ export default function AuthModal({ open, initialMode = 'signin', onClose }) {
 
   async function sendReset() {
     setBusy(true); setFeedback(null);
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    });
+    const redirectTo = import.meta.env.VITE_APP_URL ?? window.location.origin;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     setBusy(false);
     if (error) err(error.message);
     else ok('Reset email sent — check your inbox.');

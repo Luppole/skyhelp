@@ -3,6 +3,7 @@ import { BookOpen, Target, TrendingUp } from 'lucide-react';
 import PageHeader from './ui/PageHeader';
 import { SKILL_XP_TABLE, SKILL_NAMES, xpToLevel } from '../utils/skyblock';
 import { formatCoins } from '../utils/api';
+import { useUserData } from '../hooks/useUserData';
 
 const SKILL_ICONS = {
   farming: '🌾', mining: '⛏️', combat: '⚔️', foraging: '🌲', fishing: '🎣',
@@ -57,16 +58,16 @@ const BOOSTERS = [
   { name: 'Derpy Mayor (active)', mult: 3.0, costPerHour: 0 },
 ];
 
+const DEFAULT_SKILLS = Object.fromEntries(SKILL_NAMES.slice(0, 7).map(s => [s, { xp: '' }]));
+
 export default function SkillPlanner() {
-  const [skills, setSkills] = useState(
-    Object.fromEntries(SKILL_NAMES.slice(0, 7).map(s => [s, { xp: '' }]))
-  );
-  const [targetAvg, setTargetAvg] = useState(55);
+  const [skills, setSkills] = useUserData('skill_planner_skills', DEFAULT_SKILLS);
+  const [targetAvg, setTargetAvg] = useUserData('skill_planner_target', 55);
   const [selectedSource, setSelectedSource] = useState({});
   const [boosterMult, setBoosterMult] = useState(1.0);
 
   function setSkillXP(skill, value) {
-    setSkills(prev => ({ ...prev, [skill]: { xp: value } }));
+    setSkills(prev => ({ ...(prev ?? DEFAULT_SKILLS), [skill]: { xp: value } }));
   }
 
   const analysis = useMemo(() => {
