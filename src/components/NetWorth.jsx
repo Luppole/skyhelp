@@ -13,11 +13,15 @@ const COLORS = {
   inventory:   '#58a6ff',
   ender_chest: '#39d0d8',
   wardrobe:    '#3fb950',
+  backpack:    '#fb923c',
+  vault:       '#f472b6',
+  talismans:   '#a855f7',
 };
 
 const LABELS = {
   purse: 'Purse', bank: 'Bank', pets: 'Pets',
   inventory: 'Inventory', ender_chest: 'Ender Chest', wardrobe: 'Wardrobe',
+  backpack: 'Backpack', vault: 'Vault', talismans: 'Talismans',
 };
 
 export default function NetWorth() {
