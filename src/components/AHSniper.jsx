@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Target, RefreshCw, Zap, AlertTriangle } from 'lucide-react';
 import { useFetch } from '../hooks/useFetch';
 import PageHeader from './ui/PageHeader';
+import DataAge from './ui/DataAge';
 import { SkeletonTable } from './ui/Skeleton';
 import { fetchSniperResults, formatCoins } from '../utils/api';
 import { rarityClass } from '../utils/skyblock';
@@ -34,7 +35,7 @@ export default function AHSniper() {
     [threshold, minProfit, category],
   );
 
-  const { data, loading, error, reload } = useFetch(fetcher, [threshold, minProfit, category], {
+  const { data, loading, error, reload, lastFetchedAt } = useFetch(fetcher, [threshold, minProfit, category], {
     refreshInterval: refreshMs,
   });
 
@@ -61,6 +62,7 @@ export default function AHSniper() {
               <span className={`status-dot ${(!data || indexing) ? 'status-dot--yellow' : 'status-dot--green'}`} />
               {!data ? 'Loading…' : indexing ? 'Indexing…' : `${data.snipes?.length ?? 0} snipes`}
             </div>
+            <DataAge lastFetchedAt={lastFetchedAt} />
             <button className="btn-icon" onClick={reload} disabled={loading} title="Refresh">
               <RefreshCw size={14} className={loading ? 'spin' : ''} />
             </button>

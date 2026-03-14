@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { GitBranch, RefreshCw, ChevronRight } from 'lucide-react';
 import { useFetch } from '../hooks/useFetch';
 import PageHeader from './ui/PageHeader';
+import DataAge from './ui/DataAge';
 import { RECIPES, resolveRecipeCost } from '../data/recipes';
 import { fetchBazaarFlips, formatCoins } from '../utils/api';
 
@@ -59,7 +60,7 @@ function BzToAhTab() {
     () => fetch(`/api/auctions/bz-to-ah?min_profit=${minProfit}&min_margin=${minMargin}&limit=80`).then(r => r.json()),
     [minProfit, minMargin]
   );
-  const { data, loading, error, reload } = useFetch(fetcher, [minProfit, minMargin]);
+  const { data, loading, error, reload, lastFetchedAt } = useFetch(fetcher, [minProfit, minMargin]);
 
   const flips = useMemo(() => {
     const all = data?.flips ?? [];
@@ -102,6 +103,7 @@ function BzToAhTab() {
           <input type="text" placeholder="Item name…" value={search}
             onChange={e => setSearch(e.target.value)} style={{ width: 180 }} />
         </div>
+        <DataAge lastFetchedAt={lastFetchedAt} />
         <button className="btn-icon btn-sm" onClick={reload} disabled={loading}>
           <RefreshCw size={13} className={loading ? 'spin' : ''} />
         </button>

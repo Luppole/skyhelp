@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Sparkles, RefreshCw, Lock } from 'lucide-react';
 import PageHeader from './ui/PageHeader';
+import DataAge from './ui/DataAge';
 import { useFetch } from '../hooks/useFetch';
 import { formatCoins } from '../utils/api';
 import TooltipUI from './ui/Tooltip';
@@ -22,7 +23,7 @@ export default function ShardFusion() {
     () => fetch(`/api/auctions/shards?min_profit=${minProfit}&limit=80`).then(r => r.json()),
     [minProfit]
   );
-  const { data, loading, error, reload } = useFetch(fetcher, [minProfit]);
+  const { data, loading, error, reload, lastFetchedAt } = useFetch(fetcher, [minProfit]);
 
   const opportunities = (data?.opportunities ?? []).filter(o =>
     !search || o.attribute.toLowerCase().includes(search.toLowerCase())
@@ -41,6 +42,7 @@ export default function ShardFusion() {
             <span className="tag tag-gold" style={{ fontSize: 11, fontWeight: 800 }}>
               <Lock size={10} /> PREMIUM
             </span>
+            <DataAge lastFetchedAt={lastFetchedAt} />
             <button className="btn-icon" onClick={reload} disabled={loading}>
               <RefreshCw size={14} className={loading ? 'spin' : ''} />
             </button>

@@ -5,6 +5,7 @@ import { useFetch } from '../hooks/useFetch';
 import { SkeletonTable } from './ui/Skeleton';
 import ItemIcon from './ui/ItemIcon';
 import PageHeader from './ui/PageHeader';
+import DataAge from './ui/DataAge';
 import BazaarDrawer from './BazaarDrawer';
 import { fetchBazaarFlips, formatCoins, formatNumber } from '../utils/api';
 import { useSupabaseUser } from '../hooks/useSupabaseUser';
@@ -54,7 +55,7 @@ export default function Bazaar() {
     (options = {}) => fetchBazaarFlips(minVolume, minMargin, 200, options),
     [minVolume, minMargin],
   );
-  const { data, loading, error, reload } = useFetch(fetcher, [minVolume, minMargin], {
+  const { data, loading, error, reload, lastFetchedAt } = useFetch(fetcher, [minVolume, minMargin], {
     refreshInterval: refreshMs,
   });
 
@@ -139,9 +140,12 @@ export default function Bazaar() {
         title="Bazaar Flip Finder"
         description="Buy order → sell order. 1.25% tax applied. Click any row to see price history."
         actions={
-          <button className="btn-icon" onClick={reload} disabled={loading} title="Refresh">
-            <RefreshCw size={14} className={loading ? 'spin' : ''} />
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <DataAge lastFetchedAt={lastFetchedAt} />
+            <button className="btn-icon" onClick={reload} disabled={loading} title="Refresh">
+              <RefreshCw size={14} className={loading ? 'spin' : ''} />
+            </button>
+          </div>
         }
       />
 

@@ -79,6 +79,33 @@ create policy "user_portfolios_update_own" on public.user_portfolios
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- Push subscriptions (Web Push API)
+create table if not exists public.push_subscriptions (
+  endpoint text primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  subscription jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_push_subs_user on public.push_subscriptions(user_id);
+
+alter table public.push_subscriptions enable row level security;
+
+create policy "push_subs_select_own" on public.push_subscriptions
+  for select using (auth.uid() = user_id);
+
+create policy "push_subs_insert_own" on public.push_subscriptions
+  for insert with check (auth.uid() = user_id);
+
+create policy "push_subs_update_own" on public.push_subscriptions
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create policy "push_subs_delete_own" on public.push_subscriptions
+  for delete using (auth.uid() = user_id);
+
+-- Allow backend (service role) to read all subscriptions for alert checker
+-- (service role bypasses RLS by default — no extra policy needed)
+
 -- Analytics view: daily page views by path
 create or replace view public.events_daily as
 select
