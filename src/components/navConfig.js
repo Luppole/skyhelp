@@ -2,7 +2,7 @@ import {
   LayoutDashboard, TrendingUp, Gavel, User, Calculator,
   Sword, Target, Bell, BookOpen, Cpu, Hammer,
   Vote, Skull, Swords, GitBranch, Wallet, Layers, Activity,
-  Compass, UserCircle, Sparkles,
+  Compass, UserCircle, Sparkles, Sprout,
 } from 'lucide-react';
 
 export const NAV_SECTIONS = [
@@ -45,6 +45,7 @@ export const NAV_SECTIONS = [
   {
     label: 'Optimizers',
     items: [
+      { to: '/farming',     label: 'Farming',        Icon: Sprout, badge: 'NEW' },
       { to: '/calculators', label: 'Calculators',    Icon: Calculator },
       { to: '/reforge',     label: 'Reforge',        Icon: Hammer },
       { to: '/alerts',      label: 'Price Alerts',   Icon: Bell },

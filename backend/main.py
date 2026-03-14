@@ -17,7 +17,7 @@ from .utils.hypixel import load_api_key
 from .utils.ah_index import ah_index
 from .utils.price_history import price_history
 from .utils.cache import stats as cache_stats, init_cache, close_cache
-from .routers import bazaar, auctions, player, mayor, prices, push
+from .routers import bazaar, auctions, player, mayor, prices, push, garden
 
 START_TIME = time.time()
 
@@ -69,6 +69,7 @@ app.include_router(player.router)
 app.include_router(mayor.router)
 app.include_router(prices.router)
 app.include_router(push.router)
+app.include_router(garden.router)
 
 
 @app.get("/")

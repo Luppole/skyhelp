@@ -26,6 +26,7 @@ import SystemStatus from './components/SystemStatus';
 import Portfolio from './components/Portfolio';
 import Account from './components/Account';
 import GettingStarted from './components/GettingStarted';
+import FarmingUpgrades from './components/FarmingUpgrades';
 import { useTrackPage } from './hooks/useTrackPage';
 
 const PAGE_TITLES = {
@@ -50,6 +51,7 @@ const PAGE_TITLES = {
   '/portfolio':   'Portfolio',
   '/account':     'Account',
   '/getting-started': 'Getting Started',
+  '/farming':         'Farming Optimizer',
 };
 
 function TitleSync() {
@@ -104,6 +106,7 @@ function AppShell() {
             <Route path="/portfolio"   element={<Portfolio />} />
             <Route path="/account"     element={<Account />} />
             <Route path="/getting-started" element={<GettingStarted />} />
+            <Route path="/farming"     element={<FarmingUpgrades />} />
             <Route path="*"            element={<NotFound />} />
           </Routes>
         </main>
