@@ -119,18 +119,23 @@ async def player_lookup(
     if not uuid:
         raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
 
+    # SkyBlock profiles are essential — fail hard if unavailable
     try:
-        player_data, profiles_data = await asyncio.gather(
-            get_player_data(api_key, uuid),
-            get_skyblock_profiles(api_key, uuid),
-        )
+        profiles_data = await get_skyblock_profiles(api_key, uuid)
     except ValueError as e:
         raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Hypixel API error: {e}")
+        raise HTTPException(status_code=502, detail=f"Hypixel profiles error: {e}")
+
+    # General player data (rank, network level) is optional — don't 502 if it fails
+    try:
+        player_data = await get_player_data(api_key, uuid)
+    except Exception:
+        player_data = {}
 
     profiles = profiles_data.get("profiles", []) or []
 
+    # Find most recently active profile
     selected_profile = None
     latest_save = 0
     for p in profiles:
@@ -139,6 +144,9 @@ async def player_lookup(
         if save_time > latest_save:
             latest_save = save_time
             selected_profile = p
+    # Fall back to the profile flagged as selected by Hypixel
+    if not selected_profile:
+        selected_profile = next((p for p in profiles if p.get("selected")), None)
 
     analyzed = None
     if selected_profile:
@@ -184,7 +192,7 @@ async def profile_stats(
 
     try:
         profiles_data = await get_skyblock_profiles(api_key, uuid)
-    except ValueError as e:
+    except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
     profiles = profiles_data.get("profiles", []) or []

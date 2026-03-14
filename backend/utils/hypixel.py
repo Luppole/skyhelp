@@ -115,11 +115,17 @@ async def get_profile_auctions(api_key: str, profile_id: str) -> dict:
 
 
 async def get_skyblock_profiles(api_key: str, uuid: str) -> dict:
-    async with httpx.AsyncClient(timeout=15) as client:
+    """Fetch SkyBlock profiles — cached 3 min to avoid hammering the Hypixel rate limit."""
+    cache_key = f"sb_profiles:{uuid}"
+    return await cached(cache_key, ttl=180, fn=lambda: _fetch_skyblock_profiles(api_key, uuid))
+
+
+async def _fetch_skyblock_profiles(api_key: str, uuid: str) -> dict:
+    async with httpx.AsyncClient(timeout=20) as client:
         r = await client.get(
             f"{HYPIXEL_BASE}/skyblock/profiles",
             params={"key": api_key, "uuid": uuid},
         )
         if not r.is_success:
-            raise ValueError(f"Hypixel profiles error: {_hypixel_error(r)}")
+            raise ValueError(f"Hypixel profiles error {r.status_code}: {_hypixel_error(r)}")
         return r.json()
