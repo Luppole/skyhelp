@@ -5,7 +5,7 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
 self.addEventListener('push', (event) => {
   let data = {};
-  try { data = event.data?.json() ?? {}; } catch (_) {}
+  try { data = event.data?.json() ?? {}; } catch { /* ignore malformed push data */ }
 
   const title   = data.title   ?? '🔔 SkyHelper Alert';
   const body    = data.body    ?? 'A price alert has been triggered.';
