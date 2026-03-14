@@ -27,6 +27,8 @@ import Portfolio from './components/Portfolio';
 import Account from './components/Account';
 import GettingStarted from './components/GettingStarted';
 import FarmingUpgrades from './components/FarmingUpgrades';
+import RNGCalculator from './components/RNGCalculator';
+import MoneyMethods from './components/MoneyMethods';
 import { useTrackPage } from './hooks/useTrackPage';
 
 const PAGE_TITLES = {
@@ -52,6 +54,8 @@ const PAGE_TITLES = {
   '/account':     'Account',
   '/getting-started': 'Getting Started',
   '/farming':         'Farming Optimizer',
+  '/rng':             'RNG Drop Calculator',
+  '/money':           'Money Methods',
 };
 
 function TitleSync() {
@@ -107,6 +111,8 @@ function AppShell() {
             <Route path="/account"     element={<Account />} />
             <Route path="/getting-started" element={<GettingStarted />} />
             <Route path="/farming"     element={<FarmingUpgrades />} />
+            <Route path="/rng"         element={<RNGCalculator />} />
+            <Route path="/money"       element={<MoneyMethods />} />
             <Route path="*"            element={<NotFound />} />
           </Routes>
         </main>

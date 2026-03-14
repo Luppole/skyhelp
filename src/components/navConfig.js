@@ -2,7 +2,7 @@ import {
   LayoutDashboard, TrendingUp, Gavel, User, Calculator,
   Sword, Target, Bell, BookOpen, Cpu, Hammer,
   Vote, Skull, Swords, GitBranch, Wallet, Layers, Activity,
-  Compass, UserCircle, Sparkles, Sprout,
+  Compass, UserCircle, Sparkles, Sprout, Dice6, DollarSign,
 } from 'lucide-react';
 
 export const NAV_SECTIONS = [
@@ -25,6 +25,8 @@ export const NAV_SECTIONS = [
   {
     label: 'Money Makers',
     items: [
+      { to: '/rng',         label: 'RNG Calculator', Icon: Dice6,       badge: 'NEW' },
+      { to: '/money',       label: 'Money Methods',  Icon: DollarSign },
       { to: '/minions',     label: 'Minion Calc',    Icon: Cpu },
       { to: '/craft-chain', label: 'Craft Flips',    Icon: GitBranch },
       { to: '/shards',      label: 'Shard Fusion',   Icon: Sparkles, badge: '💎' },
