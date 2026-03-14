@@ -269,11 +269,12 @@ async def networth(
 
     member = profile.get("members", {}).get(uuid.replace("-", ""), {})
 
-    # ── Liquid coins ──────────────────────────────────────────────────────
-    purse   = float(member.get("purse", 0) or 0)
+    # ── Liquid coins (v2: currencies.coin_purse | v1: coin_purse) ─────────
+    currencies_v2 = member.get("currencies") or {}
+    purse   = float(currencies_v2.get("coin_purse") or member.get("coin_purse") or member.get("purse") or 0)
     banking = float((profile.get("banking") or {}).get("balance", 0) or 0)
 
-    # ── Pets ──────────────────────────────────────────────────────────────
+    # ── Pets (v2: pets_data.pets | same in v1) ────────────────────────────
     pets_raw = (member.get("pets_data") or {}).get("pets", []) or []
     pets_value = sum(_estimate_pet_value(p) for p in pets_raw)
     pets_list = [
@@ -298,16 +299,22 @@ async def networth(
                 valued.append({**it, "value": val})
         return total, valued
 
-    inv_items   = _decode_inventory((member.get("inv_contents") or {}).get("data", ""))
-    ec_items    = _decode_inventory((member.get("ender_chest_contents") or {}).get("data", ""))
-    ward_items  = _decode_inventory((member.get("wardrobe_contents") or {}).get("data", ""))
+    # v2 nests inventories under member.inventory.*  |  v1 has them flat on member
+    inv_v2 = member.get("inventory") or {}
+    def _inv_data(v2_key: str, v1_key: str) -> str:
+        return (inv_v2.get(v2_key) or member.get(v1_key) or {}).get("data", "")
+
+    inv_items   = _decode_inventory(_inv_data("inv_contents",         "inv_contents"))
+    ec_items    = _decode_inventory(_inv_data("ender_chest_contents", "ender_chest_contents"))
+    ward_items  = _decode_inventory(_inv_data("wardrobe_contents",    "wardrobe_contents"))
 
     inv_val,  inv_valued  = price_items(inv_items)
     ec_val,   ec_valued   = price_items(ec_items)
     ward_val, ward_valued = price_items(ward_items)
 
-    # ── Minions ────────────────────────────────────────────────────────────
-    crafted = member.get("crafted_generators", []) or []
+    # ── Minions (v2: player_data.crafted_generators | v1: crafted_generators) ──
+    player_data_v2 = member.get("player_data") or {}
+    crafted = player_data_v2.get("crafted_generators") or member.get("crafted_generators") or []
     minion_count = len(crafted)
 
     # ── Summary ───────────────────────────────────────────────────────────

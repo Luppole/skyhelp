@@ -120,23 +120,40 @@ def xp_to_level(xp: float, table: list[int]) -> tuple[int, float]:
 
 def analyze_profile(profile_data: dict, uuid: str) -> dict:
     """
-    Extract and compute key stats from a SkyBlock profile member object.
+    Extract and compute key stats from a SkyBlock profile member.
+    Handles both Hypixel API v1 (flat member keys) and v2 (nested sub-objects).
+
+    v2 layout changes vs v1:
+      skills  → member.player_data.experience.SKILL_FARMING  (v1: experience_skill_farming)
+      slayers → member.slayer.slayer_bosses                   (v1: member.slayer_bosses)
+      purse   → member.currencies.coin_purse                  (v1: member.coin_purse)
+      fairy   → member.player_data.fairy_souls_collected      (v1: member.fairy_souls_collected)
+      deaths  → member.player_data.deaths (dict or int)       (v1: member.death_count)
     """
     members = profile_data.get("members", {})
-    # Normalize UUID (remove dashes)
     clean_uuid = uuid.replace("-", "")
     member: dict[str, Any] = members.get(clean_uuid, {})
 
     if not member:
         return {"error": "Player data not found in profile"}
 
-    # Skills
+    # ── v2 sub-objects (empty dicts when on v1 data) ──────────────────────
+    player_data_v2: dict = member.get("player_data") or {}
+    currencies_v2:  dict = member.get("currencies")  or {}
+    slayer_v2:      dict = member.get("slayer")       or {}
+
+    # ── Skills ────────────────────────────────────────────────────────────
+    # v2: player_data.experience.SKILL_FARMING
+    # v1: experience_skill_farming  (flat on member)
+    skill_exp_v2: dict = player_data_v2.get("experience") or {}
+
     skills = {}
     skill_sum = 0
     skill_count = 0
     for skill in SKILL_NAMES:
-        xp_key = f"experience_skill_{skill}"
-        xp = member.get(xp_key, 0)
+        v2_key = f"SKILL_{skill.upper()}"
+        v1_key = f"experience_skill_{skill}"
+        xp = float(skill_exp_v2.get(v2_key) or member.get(v1_key) or 0)
         level, progress = xp_to_level(xp, SKILL_XP_TABLE)
         skills[skill] = {"level": level, "xp": xp, "progress": progress}
         if skill not in ("runecrafting", "social", "carpentry"):
@@ -145,41 +162,65 @@ def analyze_profile(profile_data: dict, uuid: str) -> dict:
 
     skill_avg = round(skill_sum / skill_count, 2) if skill_count else 0
 
-    # Slayers
+    # ── Slayers ───────────────────────────────────────────────────────────
+    # v2: member.slayer.slayer_bosses  |  v1: member.slayer_bosses
+    slayer_bosses: dict = (
+        slayer_v2.get("slayer_bosses")
+        or member.get("slayer_bosses")
+        or {}
+    )
+
     slayers = {}
     for slayer_name in ["zombie", "spider", "wolf", "enderman", "blaze", "vampire"]:
-        s_data = member.get("slayer_bosses", {}).get(slayer_name, {})
+        s_data = slayer_bosses.get(slayer_name) or {}
+        xp = s_data.get("xp", 0) or 0
         slayers[slayer_name] = {
-            "xp": s_data.get("xp", 0),
-            "level": _slayer_xp_to_level(slayer_name, s_data.get("xp", 0)),
+            "xp": xp,
+            "level": _slayer_xp_to_level(slayer_name, xp),
         }
 
-    # Dungeons
-    dungeons_data = member.get("dungeons", {})
-    dungeon_types = dungeons_data.get("dungeon_types", {})
-    catacombs = dungeon_types.get("catacombs", {})
-    cat_xp = catacombs.get("experience", 0)
+    # ── Dungeons (path unchanged between v1 and v2) ───────────────────────
+    dungeons_data  = member.get("dungeons") or {}
+    dungeon_types  = dungeons_data.get("dungeon_types") or {}
+    catacombs      = dungeon_types.get("catacombs") or {}
+    cat_xp         = float(catacombs.get("experience") or 0)
     cat_level, cat_progress = xp_to_level(cat_xp, DUNGEON_XP_TABLE)
 
-    # Classes
     classes = {}
-    player_classes = dungeons_data.get("player_classes", {})
+    player_classes = dungeons_data.get("player_classes") or {}
     for cls in ["healer", "mage", "berserk", "archer", "tank"]:
-        cls_xp = player_classes.get(cls, {}).get("experience", 0)
+        cls_xp = float((player_classes.get(cls) or {}).get("experience") or 0)
         lvl, prog = xp_to_level(cls_xp, DUNGEON_XP_TABLE)
         classes[cls] = {"level": lvl, "xp": cls_xp, "progress": prog}
 
-    # Fairy souls
-    fairy_souls = member.get("fairy_souls_collected", 0)
+    # ── Fairy souls ───────────────────────────────────────────────────────
+    # v2: player_data.fairy_souls_collected  |  v1: fairy_souls_collected
+    fairy_souls = int(
+        player_data_v2.get("fairy_souls_collected")
+        or member.get("fairy_souls_collected")
+        or 0
+    )
 
-    # Purse
-    purse = member.get("coin_purse", 0)
+    # ── Purse ─────────────────────────────────────────────────────────────
+    # v2: currencies.coin_purse  |  v1: coin_purse
+    purse = float(
+        currencies_v2.get("coin_purse")
+        or member.get("coin_purse")
+        or 0
+    )
 
-    # Deaths
-    deaths = member.get("death_count", 0)
+    # ── Deaths ────────────────────────────────────────────────────────────
+    # v2: player_data.deaths is a dict {death_type: count}  |  v1: death_count (int)
+    deaths_v2 = player_data_v2.get("deaths")
+    if isinstance(deaths_v2, dict):
+        deaths = sum(deaths_v2.values())
+    elif deaths_v2 is not None:
+        deaths = int(deaths_v2)
+    else:
+        deaths = int(member.get("death_count") or 0)
 
-    # Top collections
-    raw_collections = member.get("collection", {}) or {}
+    # ── Collections ───────────────────────────────────────────────────────
+    raw_collections: dict = member.get("collection") or {}
     sorted_cols = sorted(raw_collections.items(), key=lambda x: x[1], reverse=True)
     collections = [
         {"id": cid, "name": _format_name(cid), "count": int(cnt)}
@@ -188,17 +229,17 @@ def analyze_profile(profile_data: dict, uuid: str) -> dict:
 
     return {
         "skill_average": skill_avg,
-        "skills": skills,
-        "slayers": slayers,
+        "skills":     skills,
+        "slayers":    slayers,
         "catacombs": {
-            "level": cat_level,
-            "xp": cat_xp,
+            "level":    cat_level,
+            "xp":       cat_xp,
             "progress": cat_progress,
-            "classes": classes,
+            "classes":  classes,
         },
         "fairy_souls": fairy_souls,
-        "purse": purse,
-        "deaths": deaths,
+        "purse":       purse,
+        "deaths":      deaths,
         "collections": collections,
     }
 
