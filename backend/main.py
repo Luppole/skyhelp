@@ -17,7 +17,7 @@ from .utils.hypixel import load_api_key
 from .utils.ah_index import ah_index
 from .utils.price_history import price_history
 from .utils.cache import stats as cache_stats, init_cache, close_cache
-from .routers import bazaar, auctions, player, mayor, prices
+from .routers import bazaar, auctions, player, mayor, prices, push
 
 START_TIME = time.time()
 
@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
     else:
         await ah_index.start()
         await price_history.start()
+    asyncio.create_task(push.run_alert_checker())
     yield
     await price_history.stop()
     await ah_index.stop()
@@ -67,6 +68,7 @@ app.include_router(auctions.router)
 app.include_router(player.router)
 app.include_router(mayor.router)
 app.include_router(prices.router)
+app.include_router(push.router)
 
 
 @app.get("/")

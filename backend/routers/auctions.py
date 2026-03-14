@@ -12,6 +12,141 @@ router = APIRouter(prefix="/auctions", tags=["auctions"])
 
 _STRIP_COLOR = re.compile(r"§.")
 
+_SMALL_WORDS = frozenset({
+    'a', 'an', 'the', 'of', 'in', 'on', 'at', 'to', 'for',
+    'and', 'or', 'but', 'nor', 'with', 'by', 'from',
+})
+
+# Explicit overrides for items whose AH name differs from BZ ID→words
+_BZ_TO_AH_NAME: dict[str, str] = {
+    "ASPECT_OF_THE_END":          "Aspect of the End",
+    "ASPECT_OF_THE_VOID":         "Aspect of the Void",
+    "FLOWER_OF_TRUTH":            "Flower of Truth",
+    "GIANTS_SWORD":               "Giant's Sword",
+    "LIVID_DAGGER":               "Livid Dagger",
+    "SHADOW_FURY":                "Shadow Fury",
+    "MIDAS_STAFF":                "Midas' Staff",
+    "WITHER_BLADE":               "Wither Blade",
+    "DARK_CLAYMORE":              "Dark Claymore",
+    "NECRON_BLADE":               "Necron's Blade",
+    "HYPERION":                   "Hyperion",
+    "VALKYRIE":                   "Valkyrie",
+    "ASTRAEA":                    "Astraea",
+    "SCYLLA":                     "Scylla",
+    "WARDEN_HELMET":              "Warden Helmet",
+    "WARDEN_CHESTPLATE":          "Warden Chestplate",
+    "WARDEN_LEGGINGS":            "Warden Leggings",
+    "WARDEN_BOOTS":               "Warden Boots",
+    "BONZO_STAFF":                "Bonzo's Staff",
+    "SPIRIT_LEAP":                "Spirit Leap",
+    "BONZO_MASK":                 "Bonzo's Mask",
+    "TERMINATOR":                 "Terminator",
+    "STORM_CHESTPLATE":           "Storm's Chestplate",
+    "STORM_HELMET":               "Storm's Helmet",
+    "STORM_LEGGINGS":             "Storm's Leggings",
+    "STORM_BOOTS":                "Storm's Boots",
+    "GOLDOR_HELMET":              "Goldor's Helmet",
+    "GOLDOR_CHESTPLATE":          "Goldor's Chestplate",
+    "GOLDOR_LEGGINGS":            "Goldor's Leggings",
+    "GOLDOR_BOOTS":               "Goldor's Boots",
+    "NECRON_HELMET":              "Necron's Helmet",
+    "NECRON_CHESTPLATE":          "Necron's Chestplate",
+    "NECRON_LEGGINGS":            "Necron's Leggings",
+    "NECRON_BOOTS":               "Necron's Boots",
+    "STARRED_WITHER_CHESTPLATE":  "Starred Wither Chestplate",
+    "STARRED_WITHER_HELMET":      "Starred Wither Helmet",
+    "STARRED_WITHER_LEGGINGS":    "Starred Wither Leggings",
+    "STARRED_WITHER_BOOTS":       "Starred Wither Boots",
+    "ENCHANTED_DIAMOND":          "Enchanted Diamond",
+    "ENCHANTED_DIAMOND_BLOCK":    "Enchanted Diamond Block",
+    "ENCHANTED_GOLD":             "Enchanted Gold",
+    "ENCHANTED_GOLD_BLOCK":       "Enchanted Gold Block",
+    "ENCHANTED_IRON":             "Enchanted Iron",
+    "ENCHANTED_IRON_BLOCK":       "Enchanted Iron Block",
+    "ENCHANTED_EMERALD":          "Enchanted Emerald",
+    "ENCHANTED_EMERALD_BLOCK":    "Enchanted Emerald Block",
+    "ENCHANTED_LAPIS_LAZULI":     "Enchanted Lapis Lazuli",
+    "ENCHANTED_REDSTONE":         "Enchanted Redstone",
+    "ENCHANTED_REDSTONE_BLOCK":   "Enchanted Redstone Block",
+    "ENCHANTED_COAL":             "Enchanted Coal",
+    "ENCHANTED_COAL_BLOCK":       "Enchanted Coal Block",
+    "ENCHANTED_COBBLESTONE":      "Enchanted Cobblestone",
+    "ENCHANTED_SAND":             "Enchanted Sand",
+    "ENCHANTED_GRAVEL":           "Enchanted Gravel",
+    "ENCHANTED_OBSIDIAN":         "Enchanted Obsidian",
+    "ENCHANTED_NETHER_WART":      "Enchanted Nether Wart",
+    "ENCHANTED_BLAZE_POWDER":     "Enchanted Blaze Powder",
+    "ENCHANTED_BLAZE_ROD":        "Enchanted Blaze Rod",
+    "ENCHANTED_GHAST_TEAR":       "Enchanted Ghast Tear",
+    "ENCHANTED_MAGMA_CREAM":      "Enchanted Magma Cream",
+    "ENCHANTED_MUSHROOM":         "Enchanted Mushroom",
+    "ENCHANTED_WHEAT":            "Enchanted Wheat",
+    "ENCHANTED_MELON":            "Enchanted Melon",
+    "ENCHANTED_MELON_BLOCK":      "Enchanted Melon Block",
+    "ENCHANTED_PUMPKIN":          "Enchanted Pumpkin",
+    "ENCHANTED_CARROT":           "Enchanted Carrot",
+    "ENCHANTED_POTATO":           "Enchanted Potato",
+    "ENCHANTED_SUGAR_CANE":       "Enchanted Sugar Cane",
+    "ENCHANTED_CACTUS":           "Enchanted Cactus",
+    "ENCHANTED_CACTUS_GREEN":     "Enchanted Cactus Green",
+    "ENCHANTED_PORK":             "Enchanted Pork",
+    "ENCHANTED_RAW_CHICKEN":      "Enchanted Raw Chicken",
+    "ENCHANTED_RABBIT":           "Enchanted Rabbit",
+    "ENCHANTED_EGG":              "Enchanted Egg",
+    "ENCHANTED_FEATHER":          "Enchanted Feather",
+    "ENCHANTED_LEATHER":          "Enchanted Leather",
+    "ENCHANTED_INK_SACK":         "Enchanted Ink Sack",
+    "ENCHANTED_INK_SACK_2":       "Enchanted Magenta Dye",
+    "ENCHANTED_INK_SACK_4":       "Enchanted Yellow Dye",
+    "ENCHANTED_RAW_FISH":         "Enchanted Raw Fish",
+    "ENCHANTED_COOKED_FISH":      "Enchanted Cooked Fish",
+    "ENCHANTED_STRING":           "Enchanted String",
+    "ENCHANTED_ENDER_PEARL":      "Enchanted Ender Pearl",
+    "ENCHANTED_EYE_OF_ENDER":     "Enchanted Eye of Ender",
+    "ENCHANTED_GUNPOWDER":        "Enchanted Gunpowder",
+    "ENCHANTED_BONE":             "Enchanted Bone",
+    "ENCHANTED_ROTTEN_FLESH":     "Enchanted Rotten Flesh",
+    "ENCHANTED_SPIDER_EYE":       "Enchanted Spider Eye",
+    "ENCHANTED_SLIME_BALL":       "Enchanted Slime Ball",
+    "ENCHANTED_SLIME_BLOCK":      "Enchanted Slime Block",
+    "ENCHANTED_PRISMARINE_SHARD": "Enchanted Prismarine Shard",
+    "ENCHANTED_PRISMARINE_CRYSTALS": "Enchanted Prismarine Crystals",
+    "ENCHANTED_LILY_PAD":         "Enchanted Lily Pad",
+    "ENCHANTED_OAK_LOG":          "Enchanted Oak Log",
+    "ENCHANTED_BIRCH_LOG":        "Enchanted Birch Log",
+    "ENCHANTED_JUNGLE_LOG":       "Enchanted Jungle Log",
+    "ENCHANTED_ACACIA_LOG":       "Enchanted Acacia Log",
+    "ENCHANTED_DARK_OAK_LOG":     "Enchanted Dark Oak Log",
+    "ENCHANTED_SPRUCE_LOG":       "Enchanted Spruce Log",
+    "ENCHANTED_SAND_2":           "Enchanted Red Sand",
+    "SULPHUR":                    "Sulphur",
+    "ENCHANTED_SULPHUR":          "Enchanted Sulphur",
+    "ENCHANTED_ICE":              "Enchanted Ice",
+    "PACKED_ICE":                 "Packed Ice",
+    "ENCHANTED_PACKED_ICE":       "Enchanted Packed Ice",
+    "HARD_STONE":                 "Hard Stone",
+    "ENCHANTED_HARD_STONE":       "Enchanted Hard Stone",
+    "MITHRIL_ORE":                "Mithril Ore",
+    "ENCHANTED_MITHRIL":          "Enchanted Mithril",
+    "ENCHANTED_TITANIUM":         "Enchanted Titanium",
+    "GEMSTONE_MIXTURE":           "Gemstone Mixture",
+    "GLEAMING_CRYSTAL":           "Gleaming Crystal",
+    "WISHING_COMPASS":            "Wishing Compass",
+    "SPEED_TALISMAN":             "Speed Talisman",
+    "SPEED_RING":                 "Speed Ring",
+    "SPEED_ARTIFACT":             "Speed Artifact",
+}
+
+def _bz_id_to_ah_name(item_id: str) -> str:
+    """Convert a Bazaar item_id to its expected AH display name."""
+    if item_id in _BZ_TO_AH_NAME:
+        return _BZ_TO_AH_NAME[item_id]
+    parts = item_id.replace("_", " ").lower().split()
+    return " ".join(
+        p.capitalize() if i == 0 or p not in _SMALL_WORDS else p
+        for i, p in enumerate(parts)
+    )
+
 
 @router.get("/status")
 async def auction_status():
@@ -311,7 +446,7 @@ async def bz_to_ah_arb(
             continue
 
         # Match by display name (title-case conversion)
-        display = item_id.replace("_", " ").title()
+        display = _bz_id_to_ah_name(item_id)
         ah_listings = ah_by_name.get(display.lower(), [])
         if len(ah_listings) < 3:
             continue
