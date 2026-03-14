@@ -242,6 +242,12 @@ body::after {
   color: var(--text-dim);
 }
 
+/* ── Landing page ────────────────────────────────────────────────────────── */
+@keyframes bounce-y {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50%       { transform: translateX(-50%) translateY(6px); }
+}
+
 /* ── Page layout ─────────────────────────────────────────────────────────── */
 .page { padding: 28px 32px; max-width: 1440px; animation: page-enter 0.3s cubic-bezier(0.4,0,0.2,1); }
 

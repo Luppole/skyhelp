@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { Sword } from 'lucide-react';
+import { NavLink, Link } from 'react-router-dom';
+import { Sword, Star } from 'lucide-react';
 import { NAV_SECTIONS } from './navConfig';
 import { useSupabaseUser } from '../hooks/useSupabaseUser';
 import { useAuthModal } from './AuthProvider';
@@ -78,6 +78,18 @@ export default function Sidebar() {
           <button className="btn-secondary btn-sm" onClick={openAuth}>
             {user ? 'Account' : 'Sign in'}
           </button>
+          <Link
+            to="/landing"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              fontSize: 11, color: 'var(--gold)', textDecoration: 'none',
+              fontWeight: 700, opacity: 0.8, transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
+            onMouseLeave={e => { e.currentTarget.style.opacity = '0.8'; }}
+          >
+            <Star size={10} fill="var(--gold)" /> About SkyHelper
+          </Link>
           <div>v4.1 - SkyHelper</div>
         </div>
       </div>

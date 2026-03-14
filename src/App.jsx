@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import KoFiCorner from './components/KoFiCorner';
+import Landing from './components/Landing';
 import Dashboard from './components/Dashboard';
 import Bazaar from './components/Bazaar';
 import AuctionHouse from './components/AuctionHouse';
@@ -28,6 +29,7 @@ import GettingStarted from './components/GettingStarted';
 import { useTrackPage } from './hooks/useTrackPage';
 
 const PAGE_TITLES = {
+  '/landing':     'SkyHelper — The Ultimate SkyBlock Companion',
   '/':            'Dashboard',
   '/bazaar':      'Bazaar Flip Finder',
   '/auctions':    'Auction House',
@@ -72,43 +74,54 @@ function NotFound() {
   );
 }
 
+function AppShell() {
+  return (
+    <>
+      <a href="#main-content" className="skip-link">Skip to content</a>
+      <MobileNav />
+      <KoFiCorner />
+      <div className="app-shell">
+        <Sidebar />
+        <main id="main-content" className="app-main" role="main">
+          <Routes>
+            <Route path="/"            element={<Dashboard />} />
+            <Route path="/bazaar"      element={<Bazaar />} />
+            <Route path="/auctions"    element={<AuctionHouse />} />
+            <Route path="/player"      element={<PlayerStats />} />
+            <Route path="/calculators" element={<Calculators />} />
+            <Route path="/sniper"      element={<AHSniper />} />
+            <Route path="/alerts"      element={<PriceAlerts />} />
+            <Route path="/planner"     element={<SkillPlanner />} />
+            <Route path="/minions"     element={<MinionCalc />} />
+            <Route path="/reforge"     element={<ReforgeOptimizer />} />
+            <Route path="/mayor"       element={<MayorTracker />} />
+            <Route path="/dungeons"    element={<DungeonProfit />} />
+            <Route path="/slayer"      element={<SlayerDashboard />} />
+            <Route path="/craft-chain" element={<CraftChain />} />
+            <Route path="/shards"      element={<ShardFusion />} />
+            <Route path="/networth"    element={<NetWorth />} />
+            <Route path="/status"      element={<SystemStatus />} />
+            <Route path="/portfolio"   element={<Portfolio />} />
+            <Route path="/account"     element={<Account />} />
+            <Route path="/getting-started" element={<GettingStarted />} />
+            <Route path="*"            element={<NotFound />} />
+          </Routes>
+        </main>
+      </div>
+    </>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <TitleSync />
       <AuthProvider>
         <ErrorBoundary>
-          <a href="#main-content" className="skip-link">Skip to content</a>
-          <MobileNav />
-          <KoFiCorner />
-          <div className="app-shell">
-            <Sidebar />
-            <main id="main-content" className="app-main" role="main">
-              <Routes>
-                <Route path="/"            element={<Dashboard />} />
-                <Route path="/bazaar"      element={<Bazaar />} />
-                <Route path="/auctions"    element={<AuctionHouse />} />
-                <Route path="/player"      element={<PlayerStats />} />
-                <Route path="/calculators" element={<Calculators />} />
-                <Route path="/sniper"      element={<AHSniper />} />
-                <Route path="/alerts"      element={<PriceAlerts />} />
-                <Route path="/planner"     element={<SkillPlanner />} />
-                <Route path="/minions"     element={<MinionCalc />} />
-                <Route path="/reforge"     element={<ReforgeOptimizer />} />
-                <Route path="/mayor"       element={<MayorTracker />} />
-                <Route path="/dungeons"    element={<DungeonProfit />} />
-                <Route path="/slayer"      element={<SlayerDashboard />} />
-                <Route path="/craft-chain" element={<CraftChain />} />
-                <Route path="/shards"      element={<ShardFusion />} />
-                <Route path="/networth"    element={<NetWorth />} />
-                <Route path="/status"      element={<SystemStatus />} />
-                <Route path="/portfolio"   element={<Portfolio />} />
-                <Route path="/account"     element={<Account />} />
-                <Route path="/getting-started" element={<GettingStarted />} />
-                <Route path="*"            element={<NotFound />} />
-              </Routes>
-            </main>
-          </div>
+          <Routes>
+            <Route path="/landing" element={<Landing />} />
+            <Route path="*" element={<AppShell />} />
+          </Routes>
         </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
