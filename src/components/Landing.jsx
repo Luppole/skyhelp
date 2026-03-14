@@ -1,578 +1,929 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Sword, TrendingUp, Target, Gavel,
   Cpu, GitBranch, Sparkles, Skull, Swords,
   User, Wallet, Layers, BookOpen,
   Calculator, Hammer, Bell, Vote,
-  ArrowRight, Star, Zap, Lock, Heart,
+  ArrowRight, Zap, Lock, Heart,
   LayoutDashboard, Shield, Activity,
+  ChevronRight, Star, Trophy, Flame,
 } from 'lucide-react';
 import { useAuthModal } from './AuthProvider';
 
-// ── Feature data ──────────────────────────────────────────────────────────────
-const FEATURE_SECTIONS = [
+/* ─── Ticker data ─────────────────────────────────────────────────────────── */
+const TICKER = [
+  { name: 'Hyperion',          price: '285.4M', up: true  },
+  { name: 'Livid Dagger ✦✦✦✦', price: '43.1M',  up: true  },
+  { name: 'Storm Chestplate',  price: '12.8M',  up: false },
+  { name: 'Necron Blade',      price: '198.5M', up: true  },
+  { name: 'Warden Heart',      price: '8.2M',   up: false },
+  { name: 'Midas Staff',       price: '500.0M', up: true  },
+  { name: 'Glacite Armor Set', price: '24.6M',  up: true  },
+  { name: 'Spirit Leap',       price: '1.3M',   up: false },
+  { name: 'Emerald Blade',     price: '9.8M',   up: true  },
+  { name: 'Bonzo Staff',       price: '2.1M',   up: false },
+  { name: 'Dark Claymore',     price: '64.0M',  up: true  },
+  { name: 'Aspect of the End', price: '780K',   up: false },
+];
+
+/* ─── Feature sections ────────────────────────────────────────────────────── */
+const FEATURES = [
   {
+    id: 'markets',
     label: 'Markets',
-    color: '#60a5fa',
-    glow: 'rgba(96,165,250,0.15)',
+    gradient: 'linear-gradient(135deg, #60a5fa, #22d3ee)',
+    glow: 'rgba(96,165,250,0.2)',
+    border: 'rgba(96,165,250,0.25)',
+    bg: 'rgba(96,165,250,0.06)',
     icon: TrendingUp,
-    desc: 'Track live market prices, find undervalued listings, and flip for maximum profit.',
+    headline: 'Find flips before anyone else',
+    body: 'Real-time Bazaar spreads, live AH index with 600K+ listings, and a dedicated sniper that catches listings priced 20%+ below market before they vanish.',
     tools: [
-      { icon: TrendingUp, name: 'Bazaar Flip Finder', desc: 'Spot instant buy/sell spreads' },
-      { icon: Target,     name: 'AH Flip Sniper',    desc: 'Catch listings below median price', badge: 'HOT' },
-      { icon: Gavel,      name: 'Auction House',      desc: 'Browse & search live auctions' },
+      { icon: TrendingUp, name: 'Bazaar Flip Finder', tag: null },
+      { icon: Target,     name: 'AH Flip Sniper',    tag: 'HOT 🔥' },
+      { icon: Gavel,      name: 'Auction House',      tag: null },
     ],
   },
   {
+    id: 'moneymakers',
     label: 'Money Makers',
-    color: '#34d399',
-    glow: 'rgba(52,211,153,0.15)',
+    gradient: 'linear-gradient(135deg, #34d399, #06b6d4)',
+    glow: 'rgba(52,211,153,0.2)',
+    border: 'rgba(52,211,153,0.25)',
+    bg: 'rgba(52,211,153,0.06)',
     icon: Zap,
-    desc: 'Automated profit calculators that find the highest-ROI activities available right now.',
+    headline: 'Unlock 100M+ coin methods',
+    body: 'From minion optimisation to attribute shard fusion — every high-income method in one place with up-to-the-minute profitability calculations.',
     tools: [
-      { icon: Cpu,       name: 'Minion Calculator', desc: 'Optimize your minion setup' },
-      { icon: GitBranch, name: 'Craft Flips',       desc: 'BZ craft chains + BZ→AH arb' },
-      { icon: Sparkles,  name: 'Shard Fusion',      desc: 'Fuse attribute shards for 100M+/hr', badge: '💎 PREMIUM' },
-      { icon: Skull,     name: 'Dungeon Profit',    desc: 'Best floors for your gear & time' },
-      { icon: Swords,    name: 'Slayer Dashboard',  desc: 'Slayer XP & coin efficiency' },
+      { icon: Cpu,       name: 'Minion Calculator', tag: null },
+      { icon: GitBranch, name: 'Craft Flips',       tag: null },
+      { icon: Sparkles,  name: 'Shard Fusion',      tag: '💎 PREMIUM' },
+      { icon: Skull,     name: 'Dungeon Profit',    tag: null },
+      { icon: Swords,    name: 'Slayer Dashboard',  tag: null },
     ],
   },
   {
+    id: 'playertools',
     label: 'Player Tools',
-    color: '#c084fc',
-    glow: 'rgba(192,132,252,0.15)',
+    gradient: 'linear-gradient(135deg, #c084fc, #f472b6)',
+    glow: 'rgba(192,132,252,0.2)',
+    border: 'rgba(192,132,252,0.25)',
+    bg: 'rgba(192,132,252,0.06)',
     icon: User,
-    desc: 'Deep insights into your character — wealth, skills, inventory and long-term progress.',
+    headline: 'Know your empire inside out',
+    body: 'Full net worth valuation, skill planner, portfolio tracker and detailed player stats — everything you need to see where you are and where you\'re headed.',
     tools: [
-      { icon: User,      name: 'Player Stats',   desc: 'Skills, collections, dungeon stats' },
-      { icon: Wallet,    name: 'Net Worth',       desc: 'Full inventory & bank valuation' },
-      { icon: Layers,    name: 'Portfolio',       desc: 'Track your investments over time' },
-      { icon: BookOpen,  name: 'Skill Planner',  desc: 'Map your path to skill maxing' },
+      { icon: User,     name: 'Player Stats',   tag: null },
+      { icon: Wallet,   name: 'Net Worth',      tag: null },
+      { icon: Layers,   name: 'Portfolio',      tag: null },
+      { icon: BookOpen, name: 'Skill Planner',  tag: null },
     ],
   },
   {
+    id: 'optimizers',
     label: 'Optimizers',
-    color: '#fbbf24',
-    glow: 'rgba(251,191,36,0.15)',
+    gradient: 'linear-gradient(135deg, #fbbf24, #fb923c)',
+    glow: 'rgba(251,191,36,0.2)',
+    border: 'rgba(251,191,36,0.25)',
+    bg: 'rgba(251,191,36,0.06)',
     icon: Calculator,
-    desc: 'Fine-tune every aspect of your gameplay with our suite of advanced calculators.',
+    headline: 'Squeeze every last coin',
+    body: 'Reforge optimizer, HOTM calculators, price alerts and a full Mayor & Events tracker — the fine-tuning layer that separates good players from great ones.',
     tools: [
-      { icon: Calculator, name: 'Calculators',    desc: 'HOTM, farming speed & more' },
-      { icon: Hammer,     name: 'Reforge Optimizer', desc: 'Find the best reforge for your build' },
-      { icon: Bell,       name: 'Price Alerts',   desc: 'Get notified when prices move' },
-      { icon: Vote,       name: 'Mayor & Events', desc: 'Track active perks & calendars' },
+      { icon: Calculator, name: 'Calculators',    tag: null },
+      { icon: Hammer,     name: 'Reforge',        tag: null },
+      { icon: Bell,       name: 'Price Alerts',   tag: null },
+      { icon: Vote,       name: 'Mayor & Events', tag: null },
     ],
   },
 ];
 
-const STATS = [
-  { value: '20+',    label: 'Tools' },
-  { value: 'Live',   label: 'Hypixel API' },
-  { value: 'Free',   label: 'No paywall' },
-  { value: '100M+',  label: 'Coins/hr potential' },
+/* ─── Fake snipe rows shown in the live preview ───────────────────────────── */
+const PREVIEW_SNIPES = [
+  { name: 'Livid Dagger ✦✦✦✦',      list: '32.1M',  med: '43.8M',  profit: '+11.7M', pct: '26.7%', tier: 'LEGENDARY' },
+  { name: 'Shadow Fury',             list: '41.0M',  med: '54.2M',  profit: '+13.2M', pct: '24.4%', tier: 'LEGENDARY' },
+  { name: 'Hyperion [Recomb]',       list: '249M',   med: '310M',   profit: '+61M',   pct: '19.7%', tier: 'LEGENDARY' },
+  { name: 'Necron Helmet ✦✦✦',       list: '18.5M',  med: '24.1M',  profit: '+5.6M',  pct: '23.2%', tier: 'EPIC' },
+  { name: 'Warden Helmet',           list: '6.9M',   med: '8.8M',   profit: '+1.9M',  pct: '21.6%', tier: 'LEGENDARY' },
 ];
 
-const PREMIUM_PERKS = [
-  { icon: Sparkles, text: 'Shard Fusion Sniper — identify attribute fusion arbitrage opportunities in real time' },
-  { icon: Target,   text: 'AH Sniper with advanced filters, lower thresholds, and priority refresh' },
-  { icon: Bell,     text: 'Price Alerts — get instant notifications when your target price is hit' },
-  { icon: Activity, text: 'Portfolio tracking with historical charts and P&L breakdown' },
-];
+const TIER_COLOR = {
+  LEGENDARY: '#fbbf24',
+  EPIC: '#c084fc',
+  RARE: '#60a5fa',
+};
 
-// ── Animated star field ────────────────────────────────────────────────────────
-function StarField() {
-  const canvasRef = useRef(null);
+/* ─── Animated counter hook ───────────────────────────────────────────────── */
+function useCountUp(target, duration = 1800, start = false) {
+  const [val, setVal] = useState(0);
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let raf;
-
-    const resize = () => {
-      canvas.width  = window.innerWidth;
-      canvas.height = window.innerHeight;
+    if (!start) return;
+    let startTime = null;
+    const step = (ts) => {
+      if (!startTime) startTime = ts;
+      const p = Math.min((ts - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(Math.round(eased * target));
+      if (p < 1) requestAnimationFrame(step);
     };
-    resize();
-    window.addEventListener('resize', resize);
-
-    const stars = Array.from({ length: 120 }, () => ({
-      x: Math.random(),
-      y: Math.random(),
-      r: Math.random() * 1.2 + 0.2,
-      a: Math.random(),
-      speed: Math.random() * 0.0004 + 0.0001,
-      phase: Math.random() * Math.PI * 2,
-    }));
-
-    const draw = (t) => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (const s of stars) {
-        const alpha = s.a * 0.6 * (0.5 + 0.5 * Math.sin(t * s.speed * 1000 + s.phase));
-        ctx.beginPath();
-        ctx.arc(s.x * canvas.width, s.y * canvas.height, s.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(232,240,255,${alpha})`;
-        ctx.fill();
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    raf = requestAnimationFrame(draw);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener('resize', resize);
-    };
-  }, []);
-  return <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />;
+    requestAnimationFrame(step);
+  }, [start, target, duration]);
+  return val;
 }
 
-// ── Section header ─────────────────────────────────────────────────────────────
-function SectionTitle({ tag, title, sub }) {
+/* ─── Scroll-fade-in wrapper ──────────────────────────────────────────────── */
+function FadeIn({ children, delay = 0, style = {} }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
+      { threshold: 0.1 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
   return (
-    <div style={{ textAlign: 'center', marginBottom: 52 }}>
-      {tag && (
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)',
-          borderRadius: 20, padding: '4px 14px', marginBottom: 16,
-          fontSize: 11, fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase',
-          color: '#fbbf24',
-        }}>
-          <Star size={10} fill="#fbbf24" /> {tag}
-        </div>
-      )}
-      <h2 style={{
-        fontSize: 'clamp(24px, 4vw, 40px)', fontWeight: 900,
-        letterSpacing: '-0.5px', marginBottom: 12,
-        background: 'linear-gradient(135deg, #e8f0ff, #6b85b0)',
-        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-      }}>{title}</h2>
-      {sub && <p style={{ color: '#6b85b0', fontSize: 16, maxWidth: 560, margin: '0 auto', lineHeight: 1.7 }}>{sub}</p>}
+    <div
+      ref={ref}
+      style={{
+        transition: `opacity 0.7s ease ${delay}ms, transform 0.7s ease ${delay}ms`,
+        opacity: visible ? 1 : 0,
+        transform: visible ? 'translateY(0)' : 'translateY(28px)',
+        ...style,
+      }}
+    >
+      {children}
     </div>
   );
 }
 
-// ── Feature card ───────────────────────────────────────────────────────────────
-function FeatureCard({ section }) {
-  const SectionIcon = section.icon;
+/* ─── Animated blob background ───────────────────────────────────────────── */
+function BlobBg() {
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
+      {/* Gold blob top-left */}
+      <div style={{
+        position: 'absolute', top: '-10%', left: '-5%',
+        width: '55vw', height: '55vw', maxWidth: 700, maxHeight: 700,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(251,191,36,0.12) 0%, transparent 70%)',
+        animation: 'blob-drift-1 18s ease-in-out infinite alternate',
+        filter: 'blur(60px)',
+      }} />
+      {/* Cyan blob bottom-right */}
+      <div style={{
+        position: 'absolute', bottom: '-15%', right: '-5%',
+        width: '60vw', height: '60vw', maxWidth: 800, maxHeight: 800,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(34,211,238,0.1) 0%, transparent 70%)',
+        animation: 'blob-drift-2 22s ease-in-out infinite alternate',
+        filter: 'blur(70px)',
+      }} />
+      {/* Purple blob center */}
+      <div style={{
+        position: 'absolute', top: '30%', right: '15%',
+        width: '40vw', height: '40vw', maxWidth: 600, maxHeight: 600,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(192,132,252,0.09) 0%, transparent 70%)',
+        animation: 'blob-drift-3 15s ease-in-out infinite alternate',
+        filter: 'blur(60px)',
+      }} />
+      {/* Grid overlay */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: `
+          linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)
+        `,
+        backgroundSize: '60px 60px',
+        maskImage: 'radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 80%)',
+        WebkitMaskImage: 'radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 80%)',
+      }} />
+    </div>
+  );
+}
+
+/* ─── Scrolling ticker ────────────────────────────────────────────────────── */
+function Ticker() {
+  const doubled = [...TICKER, ...TICKER];
   return (
     <div style={{
-      background: 'rgba(13,21,37,0.8)',
-      border: '1px solid #1e2d47',
-      borderRadius: 16,
-      padding: '28px 28px 24px',
-      display: 'flex', flexDirection: 'column', gap: 20,
-      backdropFilter: 'blur(12px)',
-      transition: 'border-color 0.2s, box-shadow 0.2s',
       position: 'relative', overflow: 'hidden',
-    }}
-    onMouseEnter={e => {
-      e.currentTarget.style.borderColor = section.color + '55';
-      e.currentTarget.style.boxShadow = `0 0 40px ${section.glow}`;
-    }}
-    onMouseLeave={e => {
-      e.currentTarget.style.borderColor = '#1e2d47';
-      e.currentTarget.style.boxShadow = 'none';
-    }}
-    >
-      {/* Top accent line */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-        background: `linear-gradient(90deg, transparent, ${section.color}, transparent)`,
-        opacity: 0.6,
-      }} />
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 10,
-          background: section.glow,
-          border: `1px solid ${section.color}33`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: section.color, flexShrink: 0,
-        }}>
-          <SectionIcon size={18} />
-        </div>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 15, color: '#e8f0ff' }}>{section.label}</div>
-          <div style={{ fontSize: 12, color: '#6b85b0', marginTop: 1 }}>{section.desc}</div>
-        </div>
-      </div>
-
-      {/* Tool list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {section.tools.map(tool => {
-          const TIcon = tool.icon;
-          return (
-            <div key={tool.name} style={{
-              display: 'flex', alignItems: 'center', gap: 10,
-              padding: '8px 12px', borderRadius: 8,
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.04)',
-            }}>
-              <TIcon size={13} style={{ color: section.color, flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ fontWeight: 600, fontSize: 13, color: '#e8f0ff' }}>{tool.name}</span>
-                <span style={{ fontSize: 11, color: '#6b85b0', marginLeft: 8 }}>{tool.desc}</span>
-              </div>
-              {tool.badge && (
-                <span style={{
-                  fontSize: 8, fontWeight: 800, letterSpacing: '0.3px',
-                  background: tool.badge.includes('💎') ? 'rgba(251,191,36,0.15)' : 'rgba(248,113,113,0.15)',
-                  color: tool.badge.includes('💎') ? '#fbbf24' : '#f87171',
-                  border: `1px solid ${tool.badge.includes('💎') ? 'rgba(251,191,36,0.35)' : 'rgba(248,113,113,0.35)'}`,
-                  padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap',
-                }}>
-                  {tool.badge}
-                </span>
-              )}
-            </div>
-          );
-        })}
+      borderTop: '1px solid rgba(255,255,255,0.06)',
+      borderBottom: '1px solid rgba(255,255,255,0.06)',
+      background: 'rgba(6,11,20,0.6)',
+      backdropFilter: 'blur(8px)',
+      padding: '10px 0',
+    }}>
+      {/* Fade masks */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 80, background: 'linear-gradient(90deg, #060b14, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 80, background: 'linear-gradient(-90deg, #060b14, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+      <div style={{ display: 'flex', gap: 0, animation: 'ticker-scroll 30s linear infinite', whiteSpace: 'nowrap' }}>
+        {doubled.map((item, i) => (
+          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 28px', fontSize: 12, fontWeight: 600 }}>
+            <span style={{ color: '#6b85b0' }}>{item.name}</span>
+            <span style={{ color: item.up ? '#34d399' : '#f87171', fontWeight: 800, fontFamily: 'monospace' }}>{item.price}</span>
+            <span style={{ color: item.up ? '#34d39966' : '#f8717166', fontSize: 10 }}>{item.up ? '▲' : '▼'}</span>
+            <span style={{ color: '#1e2d47', margin: '0 4px' }}>•</span>
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────
+/* ─── Gradient button ─────────────────────────────────────────────────────── */
+function GlowButton({ children, gradient, shadow, onClick, as: As = 'button', ...rest }) {
+  const [hovered, setHovered] = useState(false);
+  const baseStyle = {
+    display: 'inline-flex', alignItems: 'center', gap: 8,
+    padding: '14px 32px', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer',
+    border: 'none', textDecoration: 'none',
+    background: gradient,
+    color: '#000',
+    boxShadow: hovered ? shadow.replace('0.35', '0.6') : shadow,
+    transform: hovered ? 'translateY(-2px) scale(1.02)' : 'none',
+    transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+  };
+  return (
+    <As style={baseStyle} onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      {...rest}
+    >
+      {children}
+    </As>
+  );
+}
+
+function GhostButton({ children, onClick, as: As = 'button', ...rest }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <As
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        padding: '14px 28px', borderRadius: 12, fontSize: 15, fontWeight: 700,
+        background: hovered ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${hovered ? '#60a5fa' : 'rgba(255,255,255,0.12)'}`,
+        color: '#e8f0ff', cursor: 'pointer', textDecoration: 'none',
+        transition: 'all 0.2s',
+        backdropFilter: 'blur(8px)',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      {...rest}
+    >
+      {children}
+    </As>
+  );
+}
+
+/* ─── Feature card ────────────────────────────────────────────────────────── */
+function FeatureCard({ f, idx }) {
+  const [hovered, setHovered] = useState(false);
+  const FIcon = f.icon;
+  return (
+    <FadeIn delay={idx * 80}>
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          borderRadius: 20, overflow: 'hidden',
+          border: `1px solid ${hovered ? f.border : 'rgba(255,255,255,0.06)'}`,
+          background: 'rgba(13,21,37,0.85)',
+          backdropFilter: 'blur(16px)',
+          boxShadow: hovered ? `0 0 60px ${f.glow}, 0 20px 60px rgba(0,0,0,0.4)` : '0 4px 24px rgba(0,0,0,0.3)',
+          transform: hovered ? 'translateY(-6px)' : 'none',
+          transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Gradient header band */}
+        <div style={{
+          padding: '28px 28px 24px',
+          background: f.bg,
+          borderBottom: `1px solid ${f.border}`,
+          position: 'relative', overflow: 'hidden',
+        }}>
+          {/* Big background icon */}
+          <div style={{
+            position: 'absolute', right: -10, top: -10,
+            opacity: 0.06, transform: 'rotate(-15deg)',
+          }}>
+            <FIcon size={120} />
+          </div>
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            {/* Icon pill */}
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: 'rgba(0,0,0,0.3)', borderRadius: 24, padding: '6px 14px 6px 8px',
+              marginBottom: 16, border: `1px solid ${f.border}`,
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 8,
+                background: f.gradient, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#000', flexShrink: 0,
+              }}>
+                <FIcon size={14} />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.5px', color: '#e8f0ff', textTransform: 'uppercase' }}>{f.label}</span>
+            </div>
+            <h3 style={{ fontSize: 20, fontWeight: 900, marginBottom: 8, lineHeight: 1.2, color: '#e8f0ff' }}>{f.headline}</h3>
+            <p style={{ fontSize: 13, color: '#6b85b0', lineHeight: 1.65 }}>{f.body}</p>
+          </div>
+        </div>
+
+        {/* Tools list */}
+        <div style={{ padding: '20px 28px 24px', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {f.tools.map(tool => {
+            const TIcon = tool.icon;
+            const isPremium = tool.tag?.includes('PREMIUM');
+            const isHot = tool.tag?.includes('HOT');
+            return (
+              <div key={tool.name} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', borderRadius: 10,
+                background: isPremium ? 'rgba(251,191,36,0.04)' : 'rgba(255,255,255,0.02)',
+                border: `1px solid ${isPremium ? 'rgba(251,191,36,0.12)' : 'rgba(255,255,255,0.04)'}`,
+              }}>
+                <TIcon size={13} style={{ color: isPremium ? '#fbbf24' : '#6b85b0', flexShrink: 0 }} />
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#c8d8f0' }}>{tool.name}</span>
+                {tool.tag && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 800, letterSpacing: '0.4px',
+                    padding: '2px 7px', borderRadius: 4,
+                    background: isPremium ? 'rgba(251,191,36,0.15)' : isHot ? 'rgba(248,113,113,0.15)' : 'rgba(52,211,153,0.12)',
+                    color: isPremium ? '#fbbf24' : isHot ? '#f87171' : '#34d399',
+                    border: `1px solid ${isPremium ? 'rgba(251,191,36,0.3)' : isHot ? 'rgba(248,113,113,0.3)' : 'rgba(52,211,153,0.3)'}`,
+                  }}>{tool.tag}</span>
+                )}
+              </div>
+            );
+          })}
+          <Link
+            to="/dashboard"
+            style={{
+              marginTop: 8, display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 13, fontWeight: 700, color: '#6b85b0', textDecoration: 'none',
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#e8f0ff'; }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#6b85b0'; }}
+          >
+            Explore {f.label} tools <ChevronRight size={13} />
+          </Link>
+        </div>
+      </div>
+    </FadeIn>
+  );
+}
+
+/* ─── Live preview section ────────────────────────────────────────────────── */
+function LivePreview() {
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setActive(a => (a + 1) % PREVIEW_SNIPES.length), 2200);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <FadeIn>
+      <div style={{
+        borderRadius: 20, overflow: 'hidden',
+        border: '1px solid rgba(255,255,255,0.07)',
+        background: 'rgba(13,21,37,0.9)',
+        backdropFilter: 'blur(20px)',
+        boxShadow: '0 40px 120px rgba(0,0,0,0.6), 0 0 80px rgba(96,165,250,0.06)',
+      }}>
+        {/* Window chrome */}
+        <div style={{
+          padding: '12px 18px', background: 'rgba(9,16,30,0.8)',
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {['#f87171','#fbbf24','#34d399'].map(c => (
+              <div key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c, opacity: 0.7 }} />
+            ))}
+          </div>
+          <div style={{
+            flex: 1, background: 'rgba(255,255,255,0.05)', borderRadius: 6,
+            padding: '4px 12px', fontSize: 11, color: '#3a506e', fontFamily: 'monospace',
+            border: '1px solid rgba(255,255,255,0.05)',
+          }}>
+            skyhelper.gg/sniper
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#34d399' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', animation: 'pulse-dot 2s ease-in-out infinite' }} />
+            LIVE
+          </div>
+        </div>
+
+        {/* Page header mockup */}
+        <div style={{
+          padding: '20px 24px 16px',
+          background: 'linear-gradient(135deg, rgba(248,113,113,0.05), rgba(251,191,36,0.03))',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f87171' }}>
+              <Target size={16} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>AH Flip Sniper</div>
+              <div style={{ fontSize: 11, color: '#6b85b0' }}>Listings priced 20%+ below median — refresh every 60s</div>
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <div style={{ padding: '4px 10px', borderRadius: 6, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', fontSize: 11, fontWeight: 700, color: '#34d399' }}>
+                {PREVIEW_SNIPES.length} snipes found
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'rgba(0,0,0,0.3)' }}>
+                {['#', 'Item', 'Listing', 'Median', 'Profit', '% Below'].map(h => (
+                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#3a506e', letterSpacing: '0.7px', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {PREVIEW_SNIPES.map((row, i) => (
+                <tr key={row.name} style={{
+                  background: i === active ? 'rgba(251,191,36,0.04)' : i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                  borderLeft: i === active ? '2px solid #fbbf24' : '2px solid transparent',
+                  transition: 'all 0.4s',
+                }}>
+                  <td style={{ padding: '12px 16px', color: '#3a506e', fontSize: 11 }}>{i + 1}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <div style={{ fontWeight: 700, color: TIER_COLOR[row.tier] ?? '#e8f0ff' }}>{row.name}</div>
+                    <div style={{ fontSize: 10, color: '#3a506e', marginTop: 2 }}>{row.tier}</div>
+                  </td>
+                  <td style={{ padding: '12px 16px', color: '#60a5fa', fontWeight: 700, fontFamily: 'monospace' }}>{row.list}</td>
+                  <td style={{ padding: '12px 16px', color: '#6b85b0', fontFamily: 'monospace' }}>{row.med}</td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{ color: '#34d399', fontWeight: 800, fontFamily: 'monospace', fontSize: 14 }}>{row.profit}</span>
+                  </td>
+                  <td style={{ padding: '12px 16px' }}>
+                    <span style={{
+                      padding: '3px 8px', borderRadius: 5, fontSize: 11, fontWeight: 800,
+                      background: 'rgba(248,113,113,0.12)', color: '#f87171', border: '1px solid rgba(248,113,113,0.25)',
+                    }}>{row.pct}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer bar */}
+        <div style={{
+          padding: '10px 18px', background: 'rgba(0,0,0,0.3)',
+          borderTop: '1px solid rgba(255,255,255,0.05)',
+          display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#3a506e',
+        }}>
+          <Activity size={11} style={{ color: '#34d399' }} />
+          <span>AH index updated <span style={{ color: '#6b85b0' }}>12 seconds ago</span></span>
+          <span style={{ marginLeft: 'auto', color: '#6b85b0' }}>600K+ live listings indexed</span>
+        </div>
+      </div>
+    </FadeIn>
+  );
+}
+
+/* ─── Stats counter row ───────────────────────────────────────────────────── */
+function StatsRow() {
+  const [started, setStarted] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setStarted(true); obs.disconnect(); } }, { threshold: 0.3 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  const tools  = useCountUp(20,  1400, started);
+  const coins  = useCountUp(100, 1600, started);
+  const items  = useCountUp(600, 1800, started);
+
+  return (
+    <div ref={ref} style={{
+      display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+      gap: 1, background: 'rgba(255,255,255,0.05)', borderRadius: 16, overflow: 'hidden',
+      border: '1px solid rgba(255,255,255,0.07)',
+      marginTop: 64,
+    }}>
+      {[
+        { val: `${tools}+`,    label: 'Tools',                 color: '#fbbf24' },
+        { val: `${coins}M+`,   label: 'Coins/hr potential',    color: '#34d399' },
+        { val: `${items}K+`,   label: 'AH listings indexed',   color: '#60a5fa' },
+        { val: 'Free',         label: 'No hidden paywall',     color: '#c084fc' },
+      ].map((s, i) => (
+        <div key={s.label} style={{
+          padding: '24px 28px', background: 'rgba(13,21,37,0.85)', textAlign: 'center',
+          backdropFilter: 'blur(12px)',
+        }}>
+          <div style={{ fontSize: 32, fontWeight: 900, color: s.color, lineHeight: 1, letterSpacing: '-1px' }}>{s.val}</div>
+          <div style={{ fontSize: 11, color: '#6b85b0', marginTop: 6, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{s.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Main component ──────────────────────────────────────────────────────── */
 export default function Landing() {
   const { openAuth } = useAuthModal();
 
   return (
-    <div style={{ minHeight: '100vh', color: '#e8f0ff', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', color: '#e8f0ff', overflowX: 'hidden', background: '#060b14' }}>
 
-      {/* ── HERO ───────────────────────────────────────────────────────────── */}
+      {/* ── CSS animations (injected once) ── */}
+      <style>{`
+        @keyframes blob-drift-1 { 0%{transform:translate(0,0) scale(1)} 100%{transform:translate(4%,6%) scale(1.08)} }
+        @keyframes blob-drift-2 { 0%{transform:translate(0,0) scale(1)} 100%{transform:translate(-5%,-4%) scale(1.1)} }
+        @keyframes blob-drift-3 { 0%{transform:translate(0,0) scale(1)} 100%{transform:translate(3%,-7%) scale(0.95)} }
+        @keyframes ticker-scroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+        @keyframes pulse-dot     { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(52,211,153,0.4)} 50%{opacity:0.7;box-shadow:0 0 0 6px transparent} }
+        @keyframes hero-float    { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+        @keyframes shimmer-bg    { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+        @keyframes scroll-hint   { 0%,100%{opacity:0.4;transform:translateX(-50%) translateY(0)} 50%{opacity:0.9;transform:translateX(-50%) translateY(8px)} }
+        @keyframes border-glow   { 0%,100%{opacity:0.5} 50%{opacity:1} }
+      `}</style>
+
+      {/* ── TOP NAV ── */}
+      <nav style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '0 clamp(20px, 4vw, 56px)',
+        height: 64,
+        background: 'rgba(6,11,20,0.7)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 900, fontSize: 18 }}>
+          <Sword size={20} style={{ color: '#fbbf24', filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.7))' }} />
+          <span style={{
+            background: 'linear-gradient(135deg, #fbbf24, #fb923c, #fbbf24)',
+            backgroundSize: '200%',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+            animation: 'shimmer-bg 4s ease-in-out infinite',
+          }}>SkyHelper</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button
+            onClick={openAuth}
+            style={{
+              padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: '#a8c0e8',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#fbbf24'; e.currentTarget.style.color = '#fbbf24'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#a8c0e8'; }}
+          >
+            Sign in
+          </button>
+          <Link to="/dashboard" style={{
+            padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: 'pointer',
+            background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: '#000',
+            textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
+            boxShadow: '0 0 20px rgba(251,191,36,0.3)',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 0 32px rgba(251,191,36,0.55)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 0 20px rgba(251,191,36,0.3)'; e.currentTarget.style.transform = 'none'; }}
+          >
+            Open App <ArrowRight size={13} />
+          </Link>
+        </div>
+      </nav>
+
+      {/* ── HERO ── */}
       <section style={{
         position: 'relative', minHeight: '100vh',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        padding: '80px 24px 60px',
-        background: 'radial-gradient(ellipse 100% 70% at 50% 0%, rgba(251,191,36,0.06) 0%, transparent 60%), radial-gradient(ellipse 80% 60% at 20% 100%, rgba(96,165,250,0.05) 0%, transparent 60%)',
+        padding: 'clamp(100px, 12vw, 160px) clamp(20px, 5vw, 80px) 0',
+        textAlign: 'center',
       }}>
-        <StarField />
+        <BlobBg />
 
-        {/* Nav bar */}
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '20px 32px',
-          borderBottom: '1px solid rgba(30,45,71,0.6)',
-          backdropFilter: 'blur(12px)',
-          zIndex: 10,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 900, fontSize: 17 }}>
-            <Sword size={20} style={{ color: '#fbbf24', filter: 'drop-shadow(0 0 6px rgba(251,191,36,0.5))' }} />
-            <span style={{
-              background: 'linear-gradient(135deg, #fbbf24, #fb923c, #fbbf24)',
-              backgroundSize: '200% 100%',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-              animation: 'text-shimmer 4s ease-in-out infinite',
-            }}>SkyHelper</span>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button
-              onClick={openAuth}
-              style={{
-                padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                background: 'transparent', border: '1px solid #2e4570', color: '#e8f0ff',
-                transition: 'all 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#fbbf24'; e.currentTarget.style.color = '#fbbf24'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#2e4570'; e.currentTarget.style.color = '#e8f0ff'; }}
-            >
-              Sign in
-            </button>
-            <Link to="/" style={{
-              padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: '#000',
-              textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6,
-              transition: 'opacity 0.15s',
-            }}>
-              Open App <ArrowRight size={13} />
-            </Link>
-          </div>
-        </div>
-
-        {/* Hero content */}
-        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', maxWidth: 800 }}>
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 880, width: '100%' }}>
           {/* Badge */}
           <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
+            display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 28,
             background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)',
-            borderRadius: 24, padding: '6px 16px', marginBottom: 28,
+            borderRadius: 24, padding: '7px 18px',
             fontSize: 12, fontWeight: 700, color: '#fbbf24', letterSpacing: '0.5px',
           }}>
-            <Zap size={11} fill="#fbbf24" />
-            Live Hypixel SkyBlock Tools — Free
+            <Flame size={12} fill="#fbbf24" /> The #1 Hypixel SkyBlock toolkit — free
           </div>
 
-          {/* Title */}
-          <h1 style={{
-            fontSize: 'clamp(42px, 8vw, 88px)',
-            fontWeight: 900, lineHeight: 1.05, letterSpacing: '-2px',
-            marginBottom: 24,
-          }}>
+          {/* Main title */}
+          <h1 style={{ fontSize: 'clamp(48px, 9vw, 100px)', fontWeight: 900, lineHeight: 0.95, letterSpacing: '-3px', marginBottom: 28 }}>
+            <span style={{ display: 'block', color: '#e8f0ff' }}>Make more</span>
             <span style={{
-              background: 'linear-gradient(135deg, #e8f0ff 0%, #a8c0e8 100%)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
               display: 'block',
-            }}>
-              Dominate
-            </span>
-            <span style={{
-              background: 'linear-gradient(135deg, #fbbf24 0%, #fb923c 50%, #fbbf24 100%)',
-              backgroundSize: '200% 100%',
+              background: 'linear-gradient(135deg, #fbbf24 0%, #fb923c 30%, #f472b6 60%, #c084fc 85%, #60a5fa 100%)',
+              backgroundSize: '200%',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-              animation: 'text-shimmer 4s ease-in-out infinite',
-              display: 'block',
-            }}>
-              SkyBlock
-            </span>
+              animation: 'shimmer-bg 6s ease-in-out infinite',
+            }}>coins.</span>
           </h1>
 
           <p style={{
-            fontSize: 'clamp(15px, 2vw, 20px)', color: '#6b85b0', lineHeight: 1.7, marginBottom: 40,
-            maxWidth: 580, margin: '0 auto 40px',
+            fontSize: 'clamp(16px, 2.2vw, 21px)', color: '#6b85b0', lineHeight: 1.65, marginBottom: 40,
+            maxWidth: 600, margin: '0 auto 40px',
           }}>
-            The ultimate toolkit for Hypixel SkyBlock players. Track live markets, find
-            profit opportunities, optimize your gear — all in one place.
+            20+ live tools for flipping, crafting, sniping and optimizing — all powered
+            by real-time Hypixel API data. No setup required.
           </p>
 
-          {/* CTA buttons */}
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 64 }}>
-            <Link to="/" style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '14px 32px', borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: 'pointer',
-              background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: '#000',
-              textDecoration: 'none', boxShadow: '0 0 32px rgba(251,191,36,0.35)',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 0 48px rgba(251,191,36,0.5)'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 0 32px rgba(251,191,36,0.35)'; }}
+          {/* CTA row */}
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 20 }}>
+            <GlowButton
+              as={Link}
+              to="/dashboard"
+              gradient="linear-gradient(135deg, #fbbf24, #f59e0b)"
+              shadow="0 0 40px rgba(251,191,36,0.4), 0 8px 24px rgba(0,0,0,0.4)"
             >
               <LayoutDashboard size={16} /> Open Dashboard
-            </Link>
-            <button onClick={openAuth} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '14px 32px', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer',
-              background: 'rgba(255,255,255,0.05)', border: '1px solid #2e4570', color: '#e8f0ff',
-              backdropFilter: 'blur(8px)', transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.09)'; e.currentTarget.style.borderColor = '#60a5fa'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = '#2e4570'; }}
-            >
+            </GlowButton>
+            <GhostButton as="button" onClick={openAuth}>
               <User size={16} /> Create Free Account
-            </button>
+            </GhostButton>
           </div>
 
-          {/* Stats row */}
-          <div style={{
-            display: 'flex', gap: 0, justifyContent: 'center', flexWrap: 'wrap',
-            borderRadius: 16, overflow: 'hidden',
-            border: '1px solid #1e2d47',
-            background: 'rgba(13,21,37,0.8)', backdropFilter: 'blur(12px)',
-            width: 'fit-content', margin: '0 auto',
-          }}>
-            {STATS.map((s, i) => (
-              <div key={s.label} style={{
-                padding: '18px 32px', textAlign: 'center',
-                borderRight: i < STATS.length - 1 ? '1px solid #1e2d47' : 'none',
-              }}>
-                <div style={{ fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 900, color: '#fbbf24', lineHeight: 1 }}>{s.value}</div>
-                <div style={{ fontSize: 11, color: '#6b85b0', marginTop: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.6px' }}>{s.label}</div>
-              </div>
-            ))}
-          </div>
+          <p style={{ fontSize: 12, color: '#3a506e' }}>No credit card · No download · Just open and use</p>
+
+          {/* Stats */}
+          <StatsRow />
         </div>
 
         {/* Scroll hint */}
         <div style={{
-          position: 'absolute', bottom: 28, left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-          color: '#3a506e', fontSize: 11, fontWeight: 600, letterSpacing: '0.5px',
-          animation: 'bounce-y 2s ease-in-out infinite',
+          position: 'absolute', bottom: 28, left: '50%',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+          color: '#3a506e', fontSize: 10, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase',
+          animation: 'scroll-hint 2.5s ease-in-out infinite',
         }}>
-          <span>SCROLL</span>
-          <ArrowRight size={12} style={{ transform: 'rotate(90deg)' }} />
+          <span>Scroll</span>
+          <ArrowRight size={11} style={{ transform: 'rotate(90deg)' }} />
         </div>
       </section>
 
-      {/* ── FEATURES ─────────────────────────────────────────────────────────── */}
+      {/* ── TICKER ── */}
+      <Ticker />
+
+      {/* ── LIVE PREVIEW ── */}
+      <section style={{
+        padding: 'clamp(70px, 9vw, 110px) clamp(20px, 5vw, 80px)',
+        background: 'linear-gradient(180deg, transparent, rgba(13,21,37,0.4), transparent)',
+      }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <FadeIn>
+            <div style={{ textAlign: 'center', marginBottom: 44 }}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 14,
+                background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)',
+                borderRadius: 20, padding: '5px 14px',
+                fontSize: 11, fontWeight: 800, color: '#34d399', letterSpacing: '0.7px', textTransform: 'uppercase',
+              }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', animation: 'pulse-dot 2s ease-in-out infinite' }} />
+                Live preview
+              </div>
+              <h2 style={{ fontSize: 'clamp(26px, 4vw, 44px)', fontWeight: 900, letterSpacing: '-1px', marginBottom: 10, color: '#e8f0ff' }}>
+                See it in action
+              </h2>
+              <p style={{ color: '#6b85b0', fontSize: 15, maxWidth: 500, margin: '0 auto' }}>
+                This is what the AH Sniper looks like — finding underpriced listings in real time so you can buy low and resell for profit.
+              </p>
+            </div>
+          </FadeIn>
+          <LivePreview />
+        </div>
+      </section>
+
+      {/* ── FEATURES ── */}
       <section style={{ padding: 'clamp(60px, 8vw, 100px) clamp(20px, 5vw, 80px)' }}>
-        <SectionTitle
-          tag="Everything in one place"
-          title="20+ tools, zero guesswork"
-          sub="Every tool you need to maximize your coins, skills, and gear — all powered by live data from the Hypixel API."
-        />
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: 20, maxWidth: 1200, margin: '0 auto',
-        }}>
-          {FEATURE_SECTIONS.map(s => <FeatureCard key={s.label} section={s} />)}
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+          <FadeIn style={{ textAlign: 'center', marginBottom: 52 }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 14,
+              background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)',
+              borderRadius: 20, padding: '5px 14px',
+              fontSize: 11, fontWeight: 800, color: '#fbbf24', letterSpacing: '0.7px', textTransform: 'uppercase',
+            }}>
+              <Star size={10} fill="#fbbf24" /> Everything in one place
+            </div>
+            <h2 style={{ fontSize: 'clamp(26px, 4vw, 44px)', fontWeight: 900, letterSpacing: '-1px', marginBottom: 12, color: '#e8f0ff' }}>
+              Every tool you need to dominate
+            </h2>
+            <p style={{ color: '#6b85b0', fontSize: 15, maxWidth: 540, margin: '0 auto' }}>
+              From beginner-friendly market tools to advanced premium strategies —
+              SkyHelper has a tool for every play style and skill level.
+            </p>
+          </FadeIn>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 20,
+          }}>
+            {FEATURES.map((f, i) => <FeatureCard key={f.id} f={f} idx={i} />)}
+          </div>
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ──────────────────────────────────────────────────────── */}
+      {/* ── HOW IT WORKS ── */}
       <section style={{
         padding: 'clamp(60px, 8vw, 100px) clamp(20px, 5vw, 80px)',
         background: 'rgba(13,21,37,0.5)',
-        borderTop: '1px solid #1e2d47', borderBottom: '1px solid #1e2d47',
+        borderTop: '1px solid rgba(255,255,255,0.05)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
       }}>
-        <SectionTitle
-          tag="How it works"
-          title="Profit in 3 simple steps"
-        />
-        <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: 24, maxWidth: 900, margin: '0 auto',
-        }}>
-          {[
-            { n: '01', icon: LayoutDashboard, color: '#60a5fa', title: 'Open any tool', desc: 'Jump straight to the Dashboard or pick a tool from the sidebar — no setup required.' },
-            { n: '02', icon: Activity,        color: '#34d399', title: 'Get live data',  desc: 'Every page pulls fresh data from the Hypixel API and AH index, updated every 60 seconds.' },
-            { n: '03', icon: Zap,             color: '#fbbf24', title: 'Act fast',       desc: 'Opportunities are highlighted in real time. Filter, sort, and execute before others do.' },
-          ].map(step => {
-            const StepIcon = step.icon;
-            return (
-              <div key={step.n} style={{
-                padding: '32px 28px', borderRadius: 16,
-                background: 'rgba(13,21,37,0.8)', border: '1px solid #1e2d47',
-                backdropFilter: 'blur(8px)', position: 'relative', overflow: 'hidden',
-              }}>
-                <div style={{
-                  position: 'absolute', top: 16, right: 20,
-                  fontSize: 48, fontWeight: 900, color: 'rgba(255,255,255,0.03)', lineHeight: 1,
-                  fontFamily: 'monospace',
-                }}>
-                  {step.n}
-                </div>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 12, marginBottom: 16,
-                  background: step.color + '18',
-                  border: `1px solid ${step.color}33`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: step.color,
-                }}>
-                  <StepIcon size={20} />
-                </div>
-                <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{step.title}</div>
-                <div style={{ color: '#6b85b0', fontSize: 13, lineHeight: 1.6 }}>{step.desc}</div>
-              </div>
-            );
-          })}
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+          <FadeIn style={{ textAlign: 'center', marginBottom: 52 }}>
+            <h2 style={{ fontSize: 'clamp(26px, 4vw, 44px)', fontWeight: 900, letterSpacing: '-1px', marginBottom: 12, color: '#e8f0ff' }}>
+              From zero to profit in 60 seconds
+            </h2>
+            <p style={{ color: '#6b85b0', fontSize: 15 }}>No accounts, no installs. Just open and go.</p>
+          </FadeIn>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 2, borderRadius: 18, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
+            {[
+              { n: '1', icon: LayoutDashboard, color: '#60a5fa', grad: 'linear-gradient(135deg,#60a5fa,#22d3ee)', title: 'Open any tool', desc: 'Pick a tool from the sidebar — no account or setup needed to start using it.' },
+              { n: '2', icon: Activity,        color: '#34d399', grad: 'linear-gradient(135deg,#34d399,#06b6d4)', title: 'Get live data',  desc: 'Every page fetches from the Hypixel API in real time. AH index refreshes every 60 seconds.' },
+              { n: '3', icon: Zap,             color: '#fbbf24', grad: 'linear-gradient(135deg,#fbbf24,#fb923c)', title: 'Act fast',       desc: 'Opportunities are ranked by profit. Filter, sort and execute before the market moves.' },
+              { n: '4', icon: Trophy,          color: '#c084fc', grad: 'linear-gradient(135deg,#c084fc,#f472b6)', title: 'Level up',       desc: 'Track your progress, plan your skills and grow your net worth with the player tools.' },
+            ].map(step => {
+              const SIcon = step.icon;
+              return (
+                <FadeIn key={step.n} delay={+step.n * 80}>
+                  <div style={{
+                    padding: '36px 32px',
+                    background: 'rgba(13,21,37,0.9)', backdropFilter: 'blur(8px)',
+                    position: 'relative', overflow: 'hidden', height: '100%',
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: 12, right: 16,
+                      fontSize: 64, fontWeight: 900, color: 'rgba(255,255,255,0.025)', lineHeight: 1, fontFamily: 'monospace',
+                    }}>{step.n}</div>
+                    <div style={{
+                      width: 48, height: 48, borderRadius: 13, marginBottom: 20,
+                      background: step.grad, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: '#000', boxShadow: `0 0 24px ${step.color}55`,
+                    }}>
+                      <SIcon size={22} />
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 8, color: '#e8f0ff' }}>{step.title}</div>
+                    <div style={{ color: '#6b85b0', fontSize: 13, lineHeight: 1.65 }}>{step.desc}</div>
+                  </div>
+                </FadeIn>
+              );
+            })}
+          </div>
         </div>
       </section>
 
-      {/* ── PREMIUM ──────────────────────────────────────────────────────────── */}
+      {/* ── PREMIUM ── */}
       <section style={{ padding: 'clamp(60px, 8vw, 100px) clamp(20px, 5vw, 80px)' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
-          <div style={{
-            borderRadius: 20,
-            background: 'linear-gradient(135deg, rgba(251,191,36,0.07) 0%, rgba(192,132,252,0.05) 50%, rgba(96,165,250,0.04) 100%)',
-            border: '1px solid rgba(251,191,36,0.2)',
-            padding: 'clamp(32px, 5vw, 56px)',
-            position: 'relative', overflow: 'hidden',
-          }}>
-            {/* Background glow blobs */}
-            <div style={{ position: 'absolute', top: -60, right: -60, width: 240, height: 240, borderRadius: '50%', background: 'rgba(251,191,36,0.05)', filter: 'blur(40px)', pointerEvents: 'none' }} />
-            <div style={{ position: 'absolute', bottom: -40, left: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(192,132,252,0.06)', filter: 'blur(40px)', pointerEvents: 'none' }} />
-
-            <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <FadeIn>
+            <div style={{
+              borderRadius: 24, overflow: 'hidden',
+              border: '1px solid rgba(251,191,36,0.2)',
+              background: 'rgba(13,21,37,0.9)',
+              backdropFilter: 'blur(20px)',
+              boxShadow: '0 0 80px rgba(251,191,36,0.08), 0 40px 100px rgba(0,0,0,0.5)',
+              position: 'relative',
+            }}>
+              {/* Animated top border */}
               <div style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20,
-                background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.3)',
-                borderRadius: 20, padding: '5px 14px',
-                fontSize: 11, fontWeight: 800, color: '#fbbf24', letterSpacing: '0.8px', textTransform: 'uppercase',
-              }}>
-                <Lock size={10} /> Premium Features
-              </div>
+                position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+                background: 'linear-gradient(90deg, transparent, #fbbf24, #fb923c, #f472b6, #c084fc, transparent)',
+                animation: 'border-glow 3s ease-in-out infinite',
+              }} />
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 32, alignItems: 'center' }}>
-                <div>
-                  <h2 style={{ fontSize: 'clamp(22px, 3.5vw, 34px)', fontWeight: 900, marginBottom: 12, lineHeight: 1.2, letterSpacing: '-0.3px' }}>
-                    Unlock the edge that others don't have
-                  </h2>
-                  <p style={{ color: '#6b85b0', fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
-                    Most tools are free forever. Premium unlocks the most powerful features —
-                    the ones that can flip your hourly income from millions to hundreds of millions.
-                  </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {PREMIUM_PERKS.map(perk => {
-                      const PIcon = perk.icon;
-                      return (
-                        <div key={perk.text} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                          <div style={{
-                            width: 28, height: 28, borderRadius: 8, flexShrink: 0, marginTop: 1,
-                            background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.25)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fbbf24',
-                          }}>
-                            <PIcon size={13} />
-                          </div>
-                          <span style={{ fontSize: 13, color: '#a8c0e8', lineHeight: 1.5 }}>{perk.text}</span>
-                        </div>
-                      );
-                    })}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 0 }}>
+                {/* Left: premium feature list */}
+                <div style={{
+                  padding: 'clamp(36px, 5vw, 56px)',
+                  borderRight: '1px solid rgba(255,255,255,0.05)',
+                }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 20,
+                    background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)',
+                    borderRadius: 20, padding: '5px 14px',
+                    fontSize: 11, fontWeight: 800, color: '#fbbf24', letterSpacing: '0.7px', textTransform: 'uppercase',
+                  }}>
+                    <Lock size={10} /> Premium
                   </div>
+                  <h2 style={{ fontSize: 'clamp(22px, 3.5vw, 36px)', fontWeight: 900, marginBottom: 12, lineHeight: 1.15, letterSpacing: '-0.5px' }}>
+                    The edge that
+                    <br />
+                    <span style={{
+                      background: 'linear-gradient(135deg, #fbbf24, #fb923c)',
+                      WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                    }}>pays for itself</span>
+                  </h2>
+                  <p style={{ color: '#6b85b0', fontSize: 14, lineHeight: 1.7, marginBottom: 32 }}>
+                    Most of SkyHelper is free forever. Premium unlocks the highest-ROI tools — the ones that can flip your hourly income from millions to hundreds of millions.
+                  </p>
+                  {[
+                    { icon: Sparkles, color: '#fbbf24', text: 'Shard Fusion Sniper — live attribute fusion arbitrage. People make 100M+/hr.' },
+                    { icon: Target,   color: '#f87171', text: 'AH Sniper premium mode — deeper filters, lower thresholds, priority refresh.' },
+                    { icon: Bell,     color: '#60a5fa', text: 'Price Alerts — pushed to you the moment your target price is hit.' },
+                    { icon: Layers,   color: '#c084fc', text: 'Portfolio history — full P&L charts and investment tracking over time.' },
+                  ].map(p => {
+                    const PIcon = p.icon;
+                    return (
+                      <div key={p.text} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+                        <div style={{
+                          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                          background: p.color + '15', border: `1px solid ${p.color}30`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', color: p.color, marginTop: 1,
+                        }}>
+                          <PIcon size={13} />
+                        </div>
+                        <p style={{ fontSize: 13, color: '#a8c0e8', lineHeight: 1.55, margin: 0 }}>{p.text}</p>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* Support card */}
+                {/* Right: Ko-fi support card */}
                 <div style={{
-                  background: 'rgba(6,11,20,0.7)', border: '1px solid rgba(251,191,36,0.15)',
-                  borderRadius: 16, padding: '28px 24px', textAlign: 'center',
-                  backdropFilter: 'blur(8px)',
+                  padding: 'clamp(36px, 5vw, 56px)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
+                  background: 'linear-gradient(135deg, rgba(251,191,36,0.03), rgba(192,132,252,0.03))',
                 }}>
-                  <div style={{ fontSize: 40, marginBottom: 12 }}>☕</div>
-                  <div style={{ fontWeight: 900, fontSize: 18, marginBottom: 8 }}>Support SkyHelper</div>
-                  <p style={{ color: '#6b85b0', fontSize: 13, lineHeight: 1.6, marginBottom: 24 }}>
-                    SkyHelper is free to use. If it helps you make coins, consider supporting
-                    development with a Ko-fi donation — it keeps the servers running and new tools coming.
+                  <div style={{
+                    fontSize: 64, marginBottom: 20,
+                    filter: 'drop-shadow(0 0 20px rgba(251,191,36,0.4))',
+                    animation: 'hero-float 4s ease-in-out infinite',
+                  }}>☕</div>
+                  <h3 style={{ fontSize: 24, fontWeight: 900, marginBottom: 10 }}>Support SkyHelper</h3>
+                  <p style={{ color: '#6b85b0', fontSize: 13, lineHeight: 1.7, marginBottom: 28, maxWidth: 300 }}>
+                    SkyHelper is built by one person and free for everyone. If it's making you coins,
+                    a Ko-fi keeps the servers alive and new tools shipping.
                   </p>
                   <a
                     href="https://ko-fi.com/S6S71VTRIW"
                     target="_blank"
                     rel="noreferrer"
                     style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 8,
-                      padding: '12px 28px', borderRadius: 10, fontSize: 14, fontWeight: 800,
+                      display: 'inline-flex', alignItems: 'center', gap: 9,
+                      padding: '14px 32px', borderRadius: 12, fontSize: 15, fontWeight: 800,
                       background: 'linear-gradient(135deg, #fbbf24, #fb923c)', color: '#000',
-                      textDecoration: 'none', boxShadow: '0 0 24px rgba(251,191,36,0.3)',
-                      transition: 'transform 0.15s, box-shadow 0.15s',
+                      textDecoration: 'none', boxShadow: '0 0 32px rgba(251,191,36,0.35)',
+                      transition: 'all 0.2s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 0 36px rgba(251,191,36,0.5)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 0 24px rgba(251,191,36,0.3)'; }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 0 48px rgba(251,191,36,0.6)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 0 32px rgba(251,191,36,0.35)'; }}
                   >
-                    <Heart size={14} fill="currentColor" /> Support on Ko-fi
+                    <Heart size={15} fill="currentColor" /> Support on Ko-fi
                   </a>
-                  <div style={{ marginTop: 12, fontSize: 11, color: '#3a506e' }}>
-                    Any amount helps — thank you! 🙏
+                  <div style={{ marginTop: 16, fontSize: 12, color: '#3a506e' }}>Any amount is hugely appreciated 🙏</div>
+
+                  {/* Coin emojis floating */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 24, fontSize: 20 }}>
+                    {['🪙','💰','🪙','💰','🪙'].map((e, i) => (
+                      <span key={i} style={{ animation: `hero-float ${2.5 + i * 0.3}s ease-in-out ${i * 0.2}s infinite`, display: 'inline-block' }}>{e}</span>
+                    ))}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </FadeIn>
         </div>
       </section>
 
-      {/* ── TRUST STRIP ──────────────────────────────────────────────────────── */}
+      {/* ── TRUST STRIP ── */}
       <section style={{
-        padding: '40px clamp(20px, 5vw, 80px)',
-        borderTop: '1px solid #1e2d47',
-        borderBottom: '1px solid #1e2d47',
-        background: 'rgba(13,21,37,0.4)',
+        padding: '32px clamp(20px, 5vw, 80px)',
+        borderTop: '1px solid rgba(255,255,255,0.05)',
+        borderBottom: '1px solid rgba(255,255,255,0.05)',
+        background: 'rgba(9,16,30,0.6)',
       }}>
-        <div style={{
-          display: 'flex', gap: 40, flexWrap: 'wrap', justifyContent: 'center',
-          maxWidth: 900, margin: '0 auto',
-        }}>
+        <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 1000, margin: '0 auto' }}>
           {[
-            { icon: Shield, text: 'No login required for most features' },
-            { icon: Zap,    text: 'Data refreshed every 60 seconds' },
-            { icon: Star,   text: 'Covers all major money-making methods' },
-            { icon: Heart,  text: 'Built by a SkyBlock player, for players' },
+            { icon: Shield,   c: '#60a5fa', text: 'No login required for most features' },
+            { icon: Zap,      c: '#34d399', text: 'AH index updated every 60 seconds' },
+            { icon: Star,     c: '#fbbf24', text: 'Covers all major SkyBlock money methods' },
+            { icon: Heart,    c: '#f472b6', text: 'Built by a player, for players' },
           ].map(item => {
             const IIcon = item.icon;
             return (
               <div key={item.text} style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#6b85b0', fontSize: 13 }}>
-                <IIcon size={14} style={{ color: '#fbbf24', flexShrink: 0 }} />
+                <IIcon size={14} style={{ color: item.c, flexShrink: 0 }} />
                 {item.text}
               </div>
             );
@@ -580,65 +931,61 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ── FINAL CTA ────────────────────────────────────────────────────────── */}
+      {/* ── FINAL CTA ── */}
       <section style={{
-        padding: 'clamp(60px, 8vw, 100px) clamp(20px, 5vw, 80px)',
+        padding: 'clamp(80px, 10vw, 120px) clamp(20px, 5vw, 80px)',
         textAlign: 'center',
-        background: 'radial-gradient(ellipse 80% 60% at 50% 100%, rgba(251,191,36,0.05) 0%, transparent 60%)',
+        position: 'relative', overflow: 'hidden',
       }}>
-        <h2 style={{
-          fontSize: 'clamp(28px, 5vw, 52px)', fontWeight: 900, letterSpacing: '-1px', marginBottom: 16,
-          background: 'linear-gradient(135deg, #e8f0ff, #fbbf24)',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-        }}>
-          Ready to make more coins?
-        </h2>
-        <p style={{ color: '#6b85b0', fontSize: 16, marginBottom: 36 }}>
-          Jump in — no account needed to start.
-        </p>
-        <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link to="/" style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '14px 36px', borderRadius: 12, fontSize: 15, fontWeight: 800,
-            background: 'linear-gradient(135deg, #fbbf24, #f59e0b)', color: '#000',
-            textDecoration: 'none', boxShadow: '0 0 32px rgba(251,191,36,0.35)',
-            transition: 'transform 0.15s, box-shadow 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 0 48px rgba(251,191,36,0.5)'; }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 0 32px rgba(251,191,36,0.35)'; }}
-          >
-            <LayoutDashboard size={16} /> Open Dashboard
-          </Link>
-          <button onClick={openAuth} style={{
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            padding: '14px 28px', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer',
-            background: 'rgba(255,255,255,0.04)', border: '1px solid #2e4570', color: '#e8f0ff',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderColor = '#60a5fa'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = '#2e4570'; }}
-          >
-            <User size={16} /> Sign Up Free
-          </button>
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', bottom: '-20%', left: '50%', transform: 'translateX(-50%)', width: '70vw', height: '40vw', borderRadius: '50%', background: 'radial-gradient(circle, rgba(251,191,36,0.07) 0%, transparent 70%)', filter: 'blur(40px)' }} />
         </div>
+        <FadeIn style={{ position: 'relative', zIndex: 1 }}>
+          <h2 style={{
+            fontSize: 'clamp(32px, 6vw, 64px)', fontWeight: 900, letterSpacing: '-2px', marginBottom: 16,
+            background: 'linear-gradient(135deg, #e8f0ff 0%, #fbbf24 50%, #fb923c 100%)',
+            backgroundSize: '200%',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+            animation: 'shimmer-bg 5s ease-in-out infinite',
+          }}>
+            Ready to make your first flip?
+          </h2>
+          <p style={{ color: '#6b85b0', fontSize: 17, marginBottom: 40 }}>
+            Jump in — no account needed. The markets are live right now.
+          </p>
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <GlowButton
+              as={Link}
+              to="/dashboard"
+              gradient="linear-gradient(135deg, #fbbf24, #f59e0b)"
+              shadow="0 0 40px rgba(251,191,36,0.4), 0 8px 24px rgba(0,0,0,0.4)"
+            >
+              <LayoutDashboard size={16} /> Open Dashboard
+            </GlowButton>
+            <GhostButton as="button" onClick={openAuth}>
+              <User size={16} /> Sign Up Free
+            </GhostButton>
+          </div>
+        </FadeIn>
       </section>
 
-      {/* ── FOOTER ───────────────────────────────────────────────────────────── */}
+      {/* ── FOOTER ── */}
       <footer style={{
-        padding: '28px clamp(20px, 5vw, 80px)',
-        borderTop: '1px solid #1e2d47',
+        padding: '24px clamp(20px, 4vw, 56px)',
+        borderTop: '1px solid rgba(255,255,255,0.05)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12,
+        background: 'rgba(6,11,20,0.8)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14 }}>
           <Sword size={15} style={{ color: '#fbbf24' }} />
           <span style={{ color: '#6b85b0' }}>SkyHelper</span>
           <span style={{ color: '#3a506e', fontSize: 11, marginLeft: 4 }}>v4.1</span>
         </div>
-        <div style={{ fontSize: 12, color: '#3a506e' }}>
-          Not affiliated with Hypixel. SkyBlock data via public Hypixel API.
+        <div style={{ fontSize: 11, color: '#3a506e', textAlign: 'center' }}>
+          Not affiliated with Hypixel. Data via public Hypixel API.
         </div>
-        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#3a506e' }}>
-          <Link to="/" style={{ color: '#6b85b0', textDecoration: 'none' }}>Dashboard</Link>
+        <div style={{ display: 'flex', gap: 20, fontSize: 12 }}>
+          <Link to="/dashboard"       style={{ color: '#6b85b0', textDecoration: 'none' }}>Dashboard</Link>
           <Link to="/getting-started" style={{ color: '#6b85b0', textDecoration: 'none' }}>Getting Started</Link>
           <a href="https://ko-fi.com/S6S71VTRIW" target="_blank" rel="noreferrer" style={{ color: '#fbbf24', textDecoration: 'none' }}>Support ☕</a>
         </div>

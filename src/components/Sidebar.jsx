@@ -79,7 +79,7 @@ export default function Sidebar() {
             {user ? 'Account' : 'Sign in'}
           </button>
           <Link
-            to="/landing"
+            to="/"
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               fontSize: 11, color: 'var(--gold)', textDecoration: 'none',

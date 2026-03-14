@@ -29,8 +29,8 @@ import GettingStarted from './components/GettingStarted';
 import { useTrackPage } from './hooks/useTrackPage';
 
 const PAGE_TITLES = {
-  '/landing':     'SkyHelper — The Ultimate SkyBlock Companion',
-  '/':            'Dashboard',
+  '/':            'SkyHelper — The Ultimate SkyBlock Companion',
+  '/dashboard':   'Dashboard',
   '/bazaar':      'Bazaar Flip Finder',
   '/auctions':    'Auction House',
   '/player':      'Player Stats',
@@ -84,7 +84,7 @@ function AppShell() {
         <Sidebar />
         <main id="main-content" className="app-main" role="main">
           <Routes>
-            <Route path="/"            element={<Dashboard />} />
+            <Route path="/dashboard"   element={<Dashboard />} />
             <Route path="/bazaar"      element={<Bazaar />} />
             <Route path="/auctions"    element={<AuctionHouse />} />
             <Route path="/player"      element={<PlayerStats />} />
@@ -119,7 +119,7 @@ export default function App() {
       <AuthProvider>
         <ErrorBoundary>
           <Routes>
-            <Route path="/landing" element={<Landing />} />
+            <Route path="/" element={<Landing />} />
             <Route path="*" element={<AppShell />} />
           </Routes>
         </ErrorBoundary>

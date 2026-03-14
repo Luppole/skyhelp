@@ -9,7 +9,7 @@ export const NAV_SECTIONS = [
   {
     label: 'Overview',
     items: [
-      { to: '/',        label: 'Dashboard',     Icon: LayoutDashboard },
+      { to: '/dashboard', label: 'Dashboard',     Icon: LayoutDashboard },
       { to: '/status',  label: 'System Status', Icon: Activity },
       { to: '/getting-started', label: 'Getting Started', Icon: Compass },
     ],
