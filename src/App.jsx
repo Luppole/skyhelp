@@ -17,6 +17,7 @@ import MayorTracker from './components/MayorTracker';
 import DungeonProfit from './components/DungeonProfit';
 import SlayerDashboard from './components/SlayerDashboard';
 import CraftChain from './components/CraftChain';
+import ShardFusion from './components/ShardFusion';
 import NetWorth from './components/NetWorth';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import { AuthProvider } from './components/AuthProvider';
@@ -40,7 +41,8 @@ const PAGE_TITLES = {
   '/mayor':       'Mayor and Events',
   '/dungeons':    'Dungeon Profit',
   '/slayer':      'Slayer Dashboard',
-  '/craft-chain': 'Craft Chain',
+  '/craft-chain': 'Craft Flips',
+  '/shards':      'Shard Fusion Sniper',
   '/networth':    'Net Worth',
   '/status':      'System Status',
   '/portfolio':   'Portfolio',
@@ -97,6 +99,7 @@ export default function App() {
                 <Route path="/dungeons"    element={<DungeonProfit />} />
                 <Route path="/slayer"      element={<SlayerDashboard />} />
                 <Route path="/craft-chain" element={<CraftChain />} />
+                <Route path="/shards"      element={<ShardFusion />} />
                 <Route path="/networth"    element={<NetWorth />} />
                 <Route path="/status"      element={<SystemStatus />} />
                 <Route path="/portfolio"   element={<Portfolio />} />
