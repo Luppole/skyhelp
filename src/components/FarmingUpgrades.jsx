@@ -1,53 +1,172 @@
-import { useState, useCallback } from 'react';
-import { Sprout, RefreshCw, Search, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Sprout, RefreshCw, Save, Cloud, CloudOff, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react';
 import PageHeader from './ui/PageHeader';
-import { fetchFarmingUpgrades, formatCoins } from '../utils/api';
+import { fetchEnchantPrices, formatCoins } from '../utils/api';
 import { useFetch } from '../hooks/useFetch';
 import DataAge from './ui/DataAge';
+import { useSupabaseUser } from '../hooks/useSupabaseUser';
+import { useAuthModal } from './AuthProvider';
+import { fetchUserData, saveUserData } from '../utils/supabaseStore';
 
-// ── Crop list (matches backend) ──────────────────────────────────────────────
+// ── Constants ────────────────────────────────────────────────────────────────
+
 const CROPS = [
-  { name: 'Wheat',       key: 'turbo_wheat'     },
-  { name: 'Carrot',      key: 'turbo_carrot'    },
-  { name: 'Potato',      key: 'turbo_potato'    },
-  { name: 'Pumpkin',     key: 'turbo_pumpkin'   },
-  { name: 'Melon',       key: 'turbo_melon'     },
-  { name: 'Mushroom',    key: 'turbo_mushrooms' },
-  { name: 'Cocoa Beans', key: 'turbo_cocoa'     },
-  { name: 'Sugar Cane',  key: 'turbo_cane'      },
-  { name: 'Nether Wart', key: 'turbo_warts'     },
-  { name: 'Cactus',      key: 'turbo_cacti'     },
+  { name: 'Wheat',       key: 'turbo_wheat',     bz: 'TURBO_WHEAT'     },
+  { name: 'Carrot',      key: 'turbo_carrot',    bz: 'TURBO_CARROT'    },
+  { name: 'Potato',      key: 'turbo_potato',    bz: 'TURBO_POTATO'    },
+  { name: 'Pumpkin',     key: 'turbo_pumpkin',   bz: 'TURBO_PUMPKIN'   },
+  { name: 'Melon',       key: 'turbo_melon',     bz: 'TURBO_MELON'     },
+  { name: 'Mushroom',    key: 'turbo_mushrooms', bz: 'TURBO_MUSHROOMS' },
+  { name: 'Cocoa Beans', key: 'turbo_cocoa',     bz: 'TURBO_COCOA'     },
+  { name: 'Sugar Cane',  key: 'turbo_cane',      bz: 'TURBO_CANE'      },
+  { name: 'Nether Wart', key: 'turbo_warts',     bz: 'TURBO_WARTS'     },
+  { name: 'Cactus',      key: 'turbo_cacti',     bz: 'TURBO_CACTI'     },
 ];
 
 const GLOBAL_ENCHANTS = [
-  { label: 'Dedication',   key: 'dedication',   max: 4 },
-  { label: 'Harvesting',   key: 'harvesting',   max: 6 },
-  { label: 'Green Thumb',  key: 'green_thumb',  max: 5 },
-  { label: 'Sugar Rush',   key: 'sugar_rush',   max: 3 },
+  { label: 'Dedication',  key: 'dedication',  max: 4, type: 'fortune' },
+  { label: 'Harvesting',  key: 'harvesting',  max: 6, type: 'fortune' },
+  { label: 'Green Thumb', key: 'green_thumb', max: 5, type: 'fortune' },
+  { label: 'Sugar Rush',  key: 'sugar_rush',  max: 3, type: 'bps'     },
 ];
 
+const DEDICATION_MULT = [0, 0.5, 0.75, 1.0, 2.0];
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
 
-// ── Tier badge ────────────────────────────────────────────────────────────────
-function TierBadge({ tier }) {
-  const color = tier >= 20 ? 'var(--gold)' : tier >= 10 ? '#34d399' : tier >= 5 ? '#60a5fa' : 'var(--text-muted)';
-  return (
-    <span style={{ fontSize: 11, fontWeight: 700, color }}>Tier {tier}</span>
-  );
+const DEFAULT_SETUP = {
+  farmingLevel: 1,
+  milestones:   Object.fromEntries(CROPS.map(c => [c.name, 0])),
+  enchants:     Object.fromEntries([
+    ...CROPS.map(c => [c.key, 0]),
+    ...GLOBAL_ENCHANTS.map(e => [e.key, 0]),
+  ]),
+};
+
+// ── Calculation (pure JS, no backend) ────────────────────────────────────────
+
+function calcSkillFF(level) {
+  return Math.min(level, 50) * 4 + Math.max(0, level - 50) * 1;
 }
 
-// ── FF/M score badge ──────────────────────────────────────────────────────────
+function calcDedicationFF(level, milestoneTier) {
+  return DEDICATION_MULT[level] * milestoneTier;
+}
+
+function buildUpgrades(setup, prices) {
+  const upgrades = [];
+  const enchants  = setup.enchants  ?? {};
+  const milestones = setup.milestones ?? {};
+  const bestMilestone = Math.max(1, ...Object.values(milestones));
+
+  // 1. Turbo enchants (crop-specific, +5 FF per level)
+  for (const crop of CROPS) {
+    const current = enchants[crop.key] ?? 0;
+    for (let lvl = current + 1; lvl <= 5; lvl++) {
+      const bzId = `ENCHANTMENT_${crop.bz}_${lvl}`;
+      const cost = prices[bzId] ?? 0;
+      if (cost <= 0) continue;
+      upgrades.push({
+        id: `${crop.key}_${lvl}`,
+        name: `Turbo-${crop.name} ${ROMAN[lvl]}`,
+        category: 'fortune', crop: crop.name,
+        fromLevel: lvl - 1, toLevel: lvl,
+        ffGain: 5, bpsGain: 0,
+        costCoins: Math.round(cost),
+        ffPerMillion: 5 / cost * 1_000_000,
+        bzItemId: bzId,
+        note: '+5 FF (this crop only)',
+      });
+    }
+  }
+
+  // 2. Dedication (scales with best milestone tier)
+  const dedCurrent = enchants.dedication ?? 0;
+  for (let lvl = dedCurrent + 1; lvl <= 4; lvl++) {
+    const bzId = `ENCHANTMENT_DEDICATION_${lvl}`;
+    const cost = prices[bzId] ?? 0;
+    if (cost <= 0) continue;
+    const ffGain = (DEDICATION_MULT[lvl] - DEDICATION_MULT[lvl - 1]) * bestMilestone;
+    upgrades.push({
+      id: `dedication_${lvl}`,
+      name: `Dedication ${ROMAN[lvl]}`,
+      category: 'fortune', crop: null,
+      fromLevel: lvl - 1, toLevel: lvl,
+      ffGain: Math.round(ffGain * 10) / 10, bpsGain: 0,
+      costCoins: Math.round(cost),
+      ffPerMillion: ffGain > 0 ? ffGain / cost * 1_000_000 : 0,
+      bzItemId: bzId,
+      note: `+${ffGain.toFixed(1)} FF (best crop @ milestone tier ${bestMilestone})`,
+    });
+  }
+
+  // 3. Harvesting (+4 FF per level, I–VI)
+  const harvCurrent = enchants.harvesting ?? 0;
+  for (let lvl = harvCurrent + 1; lvl <= 6; lvl++) {
+    const bzId = `ENCHANTMENT_HARVESTING_${lvl}`;
+    const cost = prices[bzId] ?? 0;
+    if (cost <= 0) continue;
+    upgrades.push({
+      id: `harvesting_${lvl}`,
+      name: `Harvesting ${ROMAN[lvl]}`,
+      category: 'fortune', crop: null,
+      fromLevel: lvl - 1, toLevel: lvl,
+      ffGain: 4, bpsGain: 0,
+      costCoins: Math.round(cost),
+      ffPerMillion: 4 / cost * 1_000_000,
+      bzItemId: bzId, note: '+4 FF (all crops)',
+    });
+  }
+
+  // 4. Green Thumb (+5 FF per level, I–V)
+  const gtCurrent = enchants.green_thumb ?? 0;
+  for (let lvl = gtCurrent + 1; lvl <= 5; lvl++) {
+    const bzId = `ENCHANTMENT_GREEN_THUMB_${lvl}`;
+    const cost = prices[bzId] ?? 0;
+    if (cost <= 0) continue;
+    upgrades.push({
+      id: `green_thumb_${lvl}`,
+      name: `Green Thumb ${ROMAN[lvl]}`,
+      category: 'fortune', crop: null,
+      fromLevel: lvl - 1, toLevel: lvl,
+      ffGain: 5, bpsGain: 0,
+      costCoins: Math.round(cost),
+      ffPerMillion: 5 / cost * 1_000_000,
+      bzItemId: bzId, note: '+5 FF (all crops)',
+    });
+  }
+
+  // 5. Sugar Rush (BPS, I–III)
+  const srCurrent = enchants.sugar_rush ?? 0;
+  for (let lvl = srCurrent + 1; lvl <= 3; lvl++) {
+    const bzId = `ENCHANTMENT_SUGAR_RUSH_${lvl}`;
+    const cost = prices[bzId] ?? 0;
+    if (cost <= 0) continue;
+    upgrades.push({
+      id: `sugar_rush_${lvl}`,
+      name: `Sugar Rush ${ROMAN[lvl]}`,
+      category: 'bps', crop: null,
+      fromLevel: lvl - 1, toLevel: lvl,
+      ffGain: 0, bpsGain: 0.1,
+      costCoins: Math.round(cost),
+      ffPerMillion: 0,
+      bzItemId: bzId, note: '~+0.1 BPS (Rancher\'s Boots)',
+    });
+  }
+
+  const fortune = upgrades.filter(u => u.category === 'fortune')
+    .sort((a, b) => b.ffPerMillion - a.ffPerMillion);
+  const bps = upgrades.filter(u => u.category === 'bps');
+  return [...fortune, ...bps];
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+
 function ScoreBadge({ ffpm }) {
-  const bg =
-    ffpm >= 10 ? 'rgba(251,191,36,0.15)' :
-    ffpm >= 5  ? 'rgba(52,211,153,0.12)' :
-    ffpm >= 2  ? 'rgba(96,165,250,0.12)' :
-                 'rgba(100,116,139,0.1)';
-  const color =
-    ffpm >= 10 ? 'var(--gold)' :
-    ffpm >= 5  ? '#34d399'     :
-    ffpm >= 2  ? '#60a5fa'     :
-                 'var(--text-muted)';
+  const [bg, color] =
+    ffpm >= 10 ? ['rgba(251,191,36,0.15)',  'var(--gold)']  :
+    ffpm >= 5  ? ['rgba(52,211,153,0.12)',   '#34d399']     :
+    ffpm >= 2  ? ['rgba(96,165,250,0.12)',   '#60a5fa']     :
+                 ['rgba(100,116,139,0.1)',   'var(--text-muted)'];
   return (
     <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: bg, color, whiteSpace: 'nowrap' }}>
       {ffpm.toFixed(1)} FF/M
@@ -55,212 +174,242 @@ function ScoreBadge({ ffpm }) {
   );
 }
 
-// ── Enchant level selector (0 = not owned) ───────────────────────────────────
-function EnchantSelector({ label, encKey, max, value, onChange }) {
+function LevelSelect({ value, max, onChange }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 110 }}>
-      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(encKey, Number(e.target.value))}
-        style={{ fontSize: 12 }}
-      >
-        <option value={0}>None</option>
-        {Array.from({ length: max }, (_, i) => i + 1).map(lvl => (
-          <option key={lvl} value={lvl}>{ROMAN[lvl]}</option>
-        ))}
-      </select>
-    </div>
+    <select value={value} onChange={e => onChange(Number(e.target.value))} style={{ fontSize: 12, width: '100%' }}>
+      <option value={0}>None</option>
+      {Array.from({ length: max }, (_, i) => i + 1).map(lvl => (
+        <option key={lvl} value={lvl}>{ROMAN[lvl]}</option>
+      ))}
+    </select>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
+
 export default function FarmingUpgrades() {
-  const [ign,       setIgn]       = useState('');
-  const [query,     setQuery]     = useState('');
-  const [profileId, setProfileId] = useState('');
-  const [tab,       setTab]       = useState('fortune'); // fortune | bps
-  const [cropFilter,setCropFilter]= useState('All Crops');
-  const [showSetup, setShowSetup] = useState(true);
+  const { user } = useSupabaseUser();
+  const { openAuth } = useAuthModal();
+  const [setup, setSetup]         = useState(DEFAULT_SETUP);
+  const [saved, setSaved]         = useState(true);
+  const [syncing, setSyncing]     = useState(false);
+  const [tab, setTab]             = useState('fortune');
+  const [cropFilter, setCropFilter] = useState('All Crops');
+  const [showMilestones, setShowMilestones] = useState(true);
+  const [showEnchants, setShowEnchants]   = useState(true);
 
-  // Enchant overrides (user fills in current levels)
-  const [overrides, setOverrides] = useState({});
-  function setOverride(key, val) {
-    setOverrides(prev => ({ ...prev, [key]: val }));
+  // Load saved setup from Supabase on sign-in
+  useEffect(() => {
+    if (!user) return;
+    fetchUserData(user.id, 'farming_setup').then(data => {
+      if (data) setSetup({ ...DEFAULT_SETUP, ...data });
+    });
+  }, [user?.id]);
+
+  // Fetch BZ enchant prices (cached 90s)
+  const { data: priceData, loading: pricesLoading, reload, lastFetchedAt } = useFetch(
+    useCallback((opts = {}) => fetchEnchantPrices(opts), []),
+    [],
+    { refreshInterval: 120_000 }
+  );
+  const prices = priceData?.prices ?? {};
+
+  // Computed upgrades
+  const upgrades = useMemo(() => buildUpgrades(setup, prices), [setup, prices]);
+  const skillFF  = calcSkillFF(setup.farmingLevel);
+
+  // Setters
+  function setFarmingLevel(v) {
+    setSetup(s => ({ ...s, farmingLevel: Math.min(60, Math.max(1, v)) }));
+    setSaved(false);
+  }
+  function setMilestone(crop, v) {
+    setSetup(s => ({ ...s, milestones: { ...s.milestones, [crop]: Math.min(46, Math.max(0, v)) } }));
+    setSaved(false);
+  }
+  function setEnchant(key, v) {
+    setSetup(s => ({ ...s, enchants: { ...s.enchants, [key]: v } }));
+    setSaved(false);
   }
 
-  // Fetch
-  const fetcher = useCallback(
-    (opts = {}) => query ? fetchFarmingUpgrades(query, profileId || null, overrides, opts) : Promise.resolve(null),
-    [query, profileId, overrides],
-  );
-  const { data, loading, error, reload, lastFetchedAt } = useFetch(
-    fetcher, [query, profileId, overrides], { immediate: !!query }
-  );
-
-  function handleSearch(e) {
-    e.preventDefault();
-    const trimmed = ign.trim();
-    if (!trimmed) return;
-    setQuery(trimmed);
-    setProfileId('');
+  async function saveSetup() {
+    if (!user) { openAuth(); return; }
+    setSyncing(true);
+    await saveUserData(user.id, 'farming_setup', setup);
+    setSyncing(false);
+    setSaved(true);
   }
 
-  // Once data loads, auto-set profileId to active profile
-  const activeProfile = data?.active_profile;
-  const profiles      = data?.profiles ?? [];
-  const upgrades      = data?.upgrades ?? [];
-  const player        = data?.player;
-  const garden        = data?.garden;
-
-  // Filter visible upgrades
+  // Filtered upgrades
   const visible = upgrades.filter(u => {
     if (tab === 'fortune' && u.category !== 'fortune') return false;
     if (tab === 'bps'     && u.category !== 'bps')     return false;
     if (cropFilter !== 'All Crops' && u.crop && u.crop !== cropFilter) return false;
-    if (cropFilter !== 'All Crops' && !u.crop) return false; // hide global when crop filtered
+    if (cropFilter !== 'All Crops' && !u.crop) return false;
     return true;
   });
 
   const fortuneCount = upgrades.filter(u => u.category === 'fortune').length;
   const bpsCount     = upgrades.filter(u => u.category === 'bps').length;
-  const totalFF      = data?.total_ff_gain ?? 0;
-  const totalCost    = data?.total_cost ?? 0;
+  const totalFF   = upgrades.filter(u => u.category === 'fortune').reduce((s, u) => s + u.ffGain, 0);
+  const totalCost = upgrades.reduce((s, u) => s + u.costCoins, 0);
 
-  const allCrops = ['All Crops', ...CROPS.map(c => c.name)];
+  const bestMilestone = Math.max(1, ...Object.values(setup.milestones));
+  const currentDedFF  = calcDedicationFF(setup.enchants.dedication ?? 0, bestMilestone);
 
   return (
     <div className="page">
       <PageHeader
         icon={Sprout}
         title="Farming Optimizer"
-        description="Every available Fortune & BPS enchant upgrade ranked by FF per million coins. Works where EliteBot doesn't."
+        description="Every Fortune & BPS enchant upgrade ranked by FF per million coins. No Hypixel API — your setup saved to your account."
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <DataAge lastFetchedAt={lastFetchedAt} />
-            {data && (
-              <button className="btn-icon" onClick={reload} disabled={loading} title="Refresh">
-                <RefreshCw size={14} className={loading ? 'spin' : ''} />
-              </button>
-            )}
+            <button className="btn-icon" onClick={reload} disabled={pricesLoading} title="Refresh prices">
+              <RefreshCw size={14} className={pricesLoading ? 'spin' : ''} />
+            </button>
           </div>
         }
       />
 
-      {/* Search bar */}
-      <form onSubmit={handleSearch} style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <input
-          type="text"
-          placeholder="Enter IGN…"
-          value={ign}
-          onChange={e => setIgn(e.target.value)}
-          style={{ flex: 1, maxWidth: 300 }}
-        />
-        <button type="submit" className="btn-primary" disabled={loading || !ign.trim()}>
-          <Search size={14} /> {loading ? 'Loading…' : 'Look Up'}
-        </button>
-      </form>
+      {/* Sign-in prompt */}
+      {!user && (
+        <div className="info-box" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <CloudOff size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            <span><strong>Sign in</strong> to save your setup and load it automatically next time.</span>
+          </div>
+          <button className="btn-primary btn-sm" onClick={openAuth} style={{ flexShrink: 0 }}>Sign in</button>
+        </div>
+      )}
 
-      {error && <div className="error-box" style={{ marginBottom: 16 }}>{String(error)}</div>}
+      <div className="farming-layout" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 18, alignItems: 'start' }}>
 
-      {data && (
-        <>
-          {/* Profile selector if multiple profiles */}
-          {profiles.length > 1 && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-              <span className="text-muted" style={{ fontSize: 12 }}>Profile:</span>
-              {profiles.map(p => (
-                <button
-                  key={p.profile_id}
-                  className={profileId === p.profile_id || (!profileId && p.profile_id === activeProfile?.profile_id)
-                    ? 'btn-primary btn-sm' : 'btn-secondary btn-sm'}
-                  onClick={() => setProfileId(p.profile_id)}
-                >
-                  {p.cute_name}
-                </button>
-              ))}
+        {/* ── LEFT PANEL: Setup ─────────────────────────────────────────── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Farming level */}
+          <div className="card" style={{ padding: '14px 16px' }}>
+            <div className="card__title" style={{ marginBottom: 12 }}>Farming Level</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input
+                type="number" min={1} max={60} value={setup.farmingLevel}
+                onChange={e => setFarmingLevel(+e.target.value)}
+                style={{ width: 80 }}
+              />
+              <span className="text-muted" style={{ fontSize: 12 }}>
+                = <strong style={{ color: 'var(--text)' }}>{skillFF} FF</strong> from skill
+              </span>
             </div>
-          )}
-
-          {/* Player summary */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px,1fr))', gap: 10, marginBottom: 18 }}>
-            {[
-              { label: 'Farming Level', value: player?.farming_level ?? '—', sub: `${player?.skill_ff ?? 0} FF from skill` },
-              { label: 'Skill FF',      value: player?.skill_ff ?? '—',      sub: `${formatCoins(player?.farming_xp ?? 0)} XP` },
-              { label: 'Garden Level',  value: garden?.garden_level ?? '—',  sub: `avg milestone tier ${garden?.avg_milestone ?? 0}` },
-              { label: 'FF Gain Available', value: `+${totalFF}`,            sub: `across ${fortuneCount} upgrades`, gold: true },
-              { label: 'Total Cost',    value: formatCoins(totalCost),        sub: `to max all upgrades` },
-            ].map(s => (
-              <div key={s.label} className="card" style={{ padding: '10px 14px', textAlign: 'center' }}>
-                <div className="text-muted" style={{ fontSize: 11, marginBottom: 2 }}>{s.label}</div>
-                <div style={{ fontWeight: 800, fontSize: 18, color: s.gold ? 'var(--gold)' : 'var(--text)' }}>{s.value}</div>
-                {s.sub && <div className="text-muted" style={{ fontSize: 10, marginTop: 2 }}>{s.sub}</div>}
-              </div>
-            ))}
           </div>
 
-          {/* "My Setup" enchant overrides */}
-          <div className="card" style={{ marginBottom: 18 }}>
-            <button
-              style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', justifyContent: 'space-between' }}
-              onClick={() => setShowSetup(s => !s)}
-            >
-              <div className="card__title" style={{ margin: 0 }}>My Current Enchants <span className="text-muted" style={{ fontSize: 11, fontWeight: 400 }}>(set to show only upgrades from your current level)</span></div>
-              {showSetup ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          {/* Crop milestones */}
+          <div className="card" style={{ padding: '14px 16px' }}>
+            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: showMilestones ? 12 : 0 }}
+              onClick={() => setShowMilestones(s => !s)}>
+              <div className="card__title" style={{ margin: 0 }}>
+                Crop Milestone Tiers
+                <span className="text-muted" style={{ fontSize: 11, fontWeight: 400 }}> (affects Dedication)</span>
+              </div>
+              {showMilestones ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
             </button>
-
-            {showSetup && (
-              <div style={{ marginTop: 16 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Turbo enchants (per crop):
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 18 }}>
-                  {CROPS.map(c => (
-                    <EnchantSelector
-                      key={c.key}
-                      label={c.name}
-                      encKey={c.key}
-                      max={5}
-                      value={overrides[c.key] ?? 0}
-                      onChange={setOverride}
-                    />
-                  ))}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Global enchants:
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                  {GLOBAL_ENCHANTS.map(e => (
-                    <EnchantSelector
-                      key={e.key}
-                      label={e.label}
-                      encKey={e.key}
-                      max={e.max}
-                      value={overrides[e.key] ?? 0}
-                      onChange={setOverride}
-                    />
-                  ))}
-                </div>
-                <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                  <button className="btn-primary btn-sm" onClick={reload} disabled={loading}>
-                    <RefreshCw size={12} /> Recalculate
-                  </button>
-                  <button className="btn-secondary btn-sm" onClick={() => { setOverrides({}); }}>
-                    Reset All
-                  </button>
-                </div>
+            {showMilestones && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {CROPS.map(c => (
+                  <div key={c.name}>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>{c.name}</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <input
+                        type="number" min={0} max={46}
+                        value={setup.milestones[c.name] ?? 0}
+                        onChange={e => setMilestone(c.name, +e.target.value)}
+                        style={{ width: 54, fontSize: 12 }}
+                      />
+                      <span className="text-muted" style={{ fontSize: 10 }}>/ 46</span>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Tab bar + crop filter */}
-          <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          {/* Enchant levels */}
+          <div className="card" style={{ padding: '14px 16px' }}>
+            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: showEnchants ? 12 : 0 }}
+              onClick={() => setShowEnchants(s => !s)}>
+              <div className="card__title" style={{ margin: 0 }}>Current Enchants</div>
+              {showEnchants ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+            {showEnchants && (
+              <>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>Turbo (per crop):</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+                  {CROPS.map(c => (
+                    <div key={c.key}>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>{c.name}</label>
+                      <LevelSelect value={setup.enchants[c.key] ?? 0} max={5} onChange={v => setEnchant(c.key, v)} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>Global:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {GLOBAL_ENCHANTS.map(e => (
+                    <div key={e.key}>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>
+                        {e.label}
+                        {e.type === 'bps' && <span className="tag tag-blue" style={{ fontSize: 9, marginLeft: 4, padding: '0 5px' }}>BPS</span>}
+                      </label>
+                      <LevelSelect value={setup.enchants[e.key] ?? 0} max={e.max} onChange={v => setEnchant(e.key, v)} />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Save button */}
+          <button
+            className={saved ? 'btn-secondary' : 'btn-primary'}
+            onClick={saveSetup}
+            disabled={syncing || (saved && !!user)}
+            style={{ width: '100%', justifyContent: 'center' }}
+          >
+            {syncing
+              ? <><span className="spinner spinner-sm" /> Saving…</>
+              : saved && user
+                ? <><Cloud size={13} /> Saved</>
+                : <><Save size={13} /> {user ? 'Save to account' : 'Sign in to save'}</>
+            }
+          </button>
+        </div>
+
+        {/* ── RIGHT PANEL: Results ──────────────────────────────────────── */}
+        <div>
+          {/* Summary tiles */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
-              { id: 'fortune', label: `🌾 Fortune Upgrades (${fortuneCount})` },
-              { id: 'bps',     label: `⚡ BPS Upgrades (${bpsCount})` },
+              { label: 'Farming Level', value: setup.farmingLevel,   sub: `${skillFF} FF from skill` },
+              { label: 'Dedication FF',  value: `${currentDedFF.toFixed(0)} FF`, sub: `tier ${bestMilestone} best crop` },
+              { label: 'FF Available',   value: `+${totalFF.toFixed(0)}`,  sub: `${fortuneCount} upgrades`, gold: true },
+              { label: 'Total Cost',     value: formatCoins(totalCost),     sub: 'to max all enchants' },
+            ].map(s => (
+              <div key={s.label} className="card" style={{ padding: '10px 12px', textAlign: 'center' }}>
+                <div className="text-muted" style={{ fontSize: 10, marginBottom: 2 }}>{s.label}</div>
+                <div style={{ fontWeight: 800, fontSize: 17, color: s.gold ? 'var(--gold)' : 'var(--text)' }}>{s.value}</div>
+                <div className="text-muted" style={{ fontSize: 10, marginTop: 1 }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Tab bar + crop filter */}
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: 14, alignItems: 'flex-end' }}>
+            {[
+              { id: 'fortune', label: `🌾 Fortune (${fortuneCount})` },
+              { id: 'bps',     label: `⚡ BPS (${bpsCount})` },
             ].map(t => (
               <button key={t.id} onClick={() => setTab(t.id)} style={{
-                padding: '10px 18px', fontWeight: 700, fontSize: 13,
+                padding: '9px 16px', fontWeight: 700, fontSize: 13,
                 background: 'none', border: 'none',
                 borderBottom: tab === t.id ? '2px solid var(--gold)' : '2px solid transparent',
                 color: tab === t.id ? 'var(--gold)' : 'var(--text-muted)',
@@ -272,20 +421,21 @@ export default function FarmingUpgrades() {
             {tab === 'fortune' && (
               <div style={{ marginLeft: 'auto', marginBottom: 4 }}>
                 <select value={cropFilter} onChange={e => setCropFilter(e.target.value)} style={{ fontSize: 12, height: 28 }}>
-                  {allCrops.map(c => <option key={c}>{c}</option>)}
+                  <option>All Crops</option>
+                  {CROPS.map(c => <option key={c.name}>{c.name}</option>)}
+                  <option value="global">Global only</option>
                 </select>
               </div>
             )}
           </div>
 
-          {/* Upgrade table */}
-          {visible.length === 0 ? (
-            <div className="empty-state" style={{ marginTop: 40 }}>
+          {/* Table */}
+          {pricesLoading && !priceData ? (
+            <div className="spinner" style={{ margin: '40px auto' }} />
+          ) : visible.length === 0 ? (
+            <div className="empty-state" style={{ marginTop: 30 }}>
               <span className="empty-state-icon">🌾</span>
-              <span>No upgrades available</span>
-              <span className="text-muted" style={{ fontSize: 12 }}>
-                {tab === 'fortune' ? 'You may already be maxed on all tracked enchants for this crop.' : 'All tracked BPS enchants are maxed.'}
-              </span>
+              <span>{fortuneCount === 0 ? 'All enchants maxed — nothing left to upgrade!' : 'No upgrades match this filter.'}</span>
             </div>
           ) : (
             <div className="card" style={{ padding: 0 }}>
@@ -298,63 +448,41 @@ export default function FarmingUpgrades() {
                       <th>Crop</th>
                       <th>Level</th>
                       {tab === 'fortune' && <th>FF Gain</th>}
-                      {tab === 'bps'     && <th>BPS Gain</th>}
-                      <th>Cost</th>
-                      {tab === 'fortune' && <th>FF / Million</th>}
+                      {tab === 'bps'     && <th>BPS ~Gain</th>}
+                      <th>BZ Cost</th>
+                      {tab === 'fortune' && <th>FF / M</th>}
                       <th>Note</th>
                       <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {visible.map((u, i) => (
-                      <tr key={u.id} style={{ opacity: u.cost_coins > 0 ? 1 : 0.5 }}>
+                      <tr key={u.id}>
                         <td className="text-muted" style={{ fontSize: 11 }}>{i + 1}</td>
-                        <td>
-                          <span style={{ fontWeight: 700, fontSize: 13 }}>{u.name}</span>
-                        </td>
+                        <td style={{ fontWeight: 700, fontSize: 13 }}>{u.name}</td>
                         <td>
                           {u.crop
                             ? <span className="tag tag-green" style={{ fontSize: 10 }}>{u.crop}</span>
                             : <span className="text-muted" style={{ fontSize: 11 }}>Global</span>}
                         </td>
-                        <td>
-                          <span className="text-muted" style={{ fontSize: 11 }}>
-                            {ROMAN[u.from_level] || '—'} → <strong style={{ color: 'var(--text)' }}>{ROMAN[u.to_level]}</strong>
-                          </span>
+                        <td className="text-muted" style={{ fontSize: 11 }}>
+                          {ROMAN[u.fromLevel] || '—'} → <strong style={{ color: 'var(--text)' }}>{ROMAN[u.toLevel]}</strong>
                         </td>
                         {tab === 'fortune' && (
-                          <td>
-                            <span style={{ color: 'var(--green)', fontWeight: 700 }}>+{u.ff_gain} FF</span>
-                          </td>
+                          <td><span style={{ color: 'var(--green)', fontWeight: 700 }}>+{u.ffGain} FF</span></td>
                         )}
                         {tab === 'bps' && (
-                          <td>
-                            <span style={{ color: '#60a5fa', fontWeight: 700 }}>+{u.bps_gain} BPS</span>
-                          </td>
+                          <td><span style={{ color: '#60a5fa', fontWeight: 700 }}>+{u.bpsGain} BPS</span></td>
                         )}
-                        <td>
-                          <span className="text-gold" style={{ fontWeight: 700 }}>
-                            {u.cost_coins > 0 ? formatCoins(u.cost_coins) : <span className="text-muted">No BZ price</span>}
-                          </span>
-                        </td>
+                        <td><span className="text-gold" style={{ fontWeight: 700 }}>{formatCoins(u.costCoins)}</span></td>
                         {tab === 'fortune' && (
-                          <td>
-                            {u.ff_per_million > 0
-                              ? <ScoreBadge ffpm={u.ff_per_million} />
-                              : <span className="text-muted" style={{ fontSize: 11 }}>—</span>}
-                          </td>
+                          <td>{u.ffPerMillion > 0 ? <ScoreBadge ffpm={u.ffPerMillion} /> : <span className="text-muted">—</span>}</td>
                         )}
-                        <td className="text-muted" style={{ fontSize: 11, maxWidth: 240, whiteSpace: 'normal' }}>
-                          {u.note}
-                        </td>
+                        <td className="text-muted" style={{ fontSize: 11 }}>{u.note}</td>
                         <td>
-                          <a
-                            href={`https://sky.coflnet.com/auction?itemTag=${u.bz_item_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-icon btn-sm"
-                            title="View on sky.coflnet"
-                          >
+                          <a href={`https://sky.coflnet.com/bazaar/${u.bzItemId}`}
+                            target="_blank" rel="noopener noreferrer"
+                            className="btn-icon btn-sm" title="View on Coflnet">
                             <ExternalLink size={11} />
                           </a>
                         </td>
@@ -363,59 +491,21 @@ export default function FarmingUpgrades() {
                   </tbody>
                 </table>
               </div>
-
-              {/* Summary footer */}
               {tab === 'fortune' && visible.length > 0 && (
-                <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                  <span className="text-muted" style={{ fontSize: 12 }}>
-                    {visible.length} upgrades shown
+                <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+                  <span className="text-muted" style={{ fontSize: 12 }}>{visible.length} upgrades</span>
+                  <span style={{ fontSize: 12 }}>
+                    Total FF: <strong style={{ color: 'var(--green)' }}>+{visible.reduce((s, u) => s + u.ffGain, 0).toFixed(0)}</strong>
                   </span>
                   <span style={{ fontSize: 12 }}>
-                    Total FF gain: <strong style={{ color: 'var(--green)' }}>
-                      +{visible.reduce((s, u) => s + u.ff_gain, 0).toFixed(1)}
-                    </strong>
-                  </span>
-                  <span style={{ fontSize: 12 }}>
-                    Total cost: <strong className="text-gold">
-                      {formatCoins(visible.reduce((s, u) => s + u.cost_coins, 0))}
-                    </strong>
+                    Total cost: <strong className="text-gold">{formatCoins(visible.reduce((s, u) => s + u.costCoins, 0))}</strong>
                   </span>
                 </div>
               )}
             </div>
           )}
-
-          {/* Crop milestone sidebar for fortune tab */}
-          {tab === 'fortune' && garden?.crop_milestones && (
-            <div style={{ marginTop: 18 }}>
-              <div className="section-title" style={{ marginTop: 0 }}>Crop Milestones (affects Dedication FF)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px,1fr))', gap: 8 }}>
-                {Object.entries(garden.crop_milestones).map(([crop, info]) => (
-                  <div key={crop} className="card" style={{ padding: '8px 12px' }}>
-                    <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 2 }}>{crop}</div>
-                    <TierBadge tier={info.tier} />
-                    {info.next_threshold_needed && (
-                      <div className="text-muted" style={{ fontSize: 10, marginTop: 2 }}>
-                        {formatCoins(info.next_threshold_needed)} to next tier
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {!data && !loading && !error && (
-        <div className="empty-state" style={{ marginTop: 60 }}>
-          <span className="empty-state-icon"><Sprout size={40} strokeWidth={1.5} /></span>
-          <span>Enter an IGN to get started</span>
-          <span className="text-muted" style={{ fontSize: 12 }}>
-            Every Fortune & BPS upgrade ranked by efficiency — no EliteBot required
-          </span>
         </div>
-      )}
+      </div>
     </div>
   );
 }

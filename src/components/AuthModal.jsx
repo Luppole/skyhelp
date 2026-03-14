@@ -1,37 +1,80 @@
-import { useState } from 'react';
-import { LogIn, Mail, X, LogOut, KeyRound, User, AtSign, Lock, ArrowLeft, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import {
+  LogIn, Mail, X, LogOut, KeyRound, User, AtSign, Lock,
+  ArrowLeft, CheckCircle, Eye, EyeOff, ShieldCheck, Zap, BarChart2,
+} from 'lucide-react';
 import { supabase, supabaseEnabled } from '../utils/supabase';
 import { useSupabaseUser } from '../hooks/useSupabaseUser';
 
-export default function AuthModal({ open, onClose }) {
+const PERKS = [
+  { icon: BarChart2, text: 'Sync alerts & watchlist across devices' },
+  { icon: Zap,       text: 'Background push notifications for price alerts' },
+  { icon: ShieldCheck, text: 'Portfolio saved to the cloud automatically' },
+];
+
+function PasswordInput({ value, onChange, onEnter, disabled, placeholder = '••••••••', autoComplete }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="auth-modal__input-wrap">
+      <span className="auth-modal__input-icon"><Lock size={14} /></span>
+      <input
+        type={show ? 'text' : 'password'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        onKeyDown={e => e.key === 'Enter' && onEnter?.()}
+        autoComplete={autoComplete}
+        style={{ paddingRight: 40 }}
+      />
+      <button
+        type="button"
+        onClick={() => setShow(s => !s)}
+        className="auth-modal__pw-toggle"
+        tabIndex={-1}
+        aria-label={show ? 'Hide password' : 'Show password'}
+      >
+        {show ? <EyeOff size={13} /> : <Eye size={13} />}
+      </button>
+    </div>
+  );
+}
+
+export default function AuthModal({ open, initialMode = 'signin', onClose }) {
   const { user, loading } = useSupabaseUser();
-  const [email, setEmail]       = useState('');
+  const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
-  const [feedback, setFeedback] = useState(null); // { type: 'error'|'success'|'info', msg }
-  const [busy, setBusy]         = useState(false);
-  const [mode, setMode]         = useState('signin'); // 'signin' | 'signup' | 'reset'
+  const [confirm,  setConfirm]  = useState('');
+  const [feedback, setFeedback] = useState(null);
+  const [busy,     setBusy]     = useState(false);
+  const [mode,     setMode]     = useState(initialMode);
+
+  // Sync mode when prop changes (e.g. PASSWORD_RECOVERY opens modal at 'new-password')
+  useEffect(() => { if (open) setMode(initialMode); }, [open, initialMode]);
 
   if (!open) return null;
 
-  function switchMode(m) { setFeedback(null); setMode(m); }
+  function switchMode(m) { setFeedback(null); setPassword(''); setConfirm(''); setMode(m); }
+  function ok(msg)  { setFeedback({ type: 'success', msg }); }
+  function err(msg) { setFeedback({ type: 'error',   msg }); }
 
   async function signIn() {
-    setFeedback(null); setBusy(true);
+    setBusy(true); setFeedback(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
-    if (error) setFeedback({ type: 'error', msg: error.message });
-    else { setFeedback({ type: 'success', msg: 'Signed in!' }); setTimeout(onClose, 900); }
+    if (error) err(error.message);
+    else { ok('Signed in!'); setTimeout(onClose, 800); }
   }
 
   async function signUp() {
-    setFeedback(null); setBusy(true);
+    setBusy(true); setFeedback(null);
     const { error } = await supabase.auth.signUp({
       email, password,
       options: { emailRedirectTo: window.location.origin },
     });
     setBusy(false);
-    if (error) setFeedback({ type: 'error', msg: error.message });
-    else setFeedback({ type: 'success', msg: 'Check your email to confirm your account.' });
+    if (error) err(error.message);
+    else ok('Check your email to confirm your account.');
   }
 
   async function signOut() {
@@ -39,18 +82,40 @@ export default function AuthModal({ open, onClose }) {
     onClose();
   }
 
-  async function resetPassword() {
-    setFeedback(null); setBusy(true);
+  async function sendReset() {
+    setBusy(true); setFeedback(null);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     });
     setBusy(false);
-    if (error) setFeedback({ type: 'error', msg: error.message });
-    else setFeedback({ type: 'success', msg: 'Reset email sent — check your inbox.' });
+    if (error) err(error.message);
+    else ok('Reset email sent — check your inbox.');
   }
 
-  const titleMap = { signin: 'Welcome back', signup: 'Create account', reset: 'Reset password' };
-  const subtitleMap = { signin: 'Sign in to sync your settings', signup: 'Start tracking your SkyBlock progress', reset: 'Enter your email to get a reset link' };
+  async function setNewPassword() {
+    if (password !== confirm) { err("Passwords don't match."); return; }
+    if (password.length < 8)  { err('Password must be at least 8 characters.'); return; }
+    setBusy(true); setFeedback(null);
+    const { error } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (error) err(error.message);
+    else { ok('Password updated! You are now signed in.'); setTimeout(onClose, 1200); }
+  }
+
+  const TITLES = {
+    signin:       'Welcome back',
+    signup:       'Create account',
+    reset:        'Reset password',
+    'new-password': 'Set new password',
+  };
+  const SUBS = {
+    signin:       'Sign in to sync your SkyBlock progress',
+    signup:       'Start tracking your SkyBlock empire',
+    reset:        "We'll email you a secure reset link",
+    'new-password': 'Choose a new password for your account',
+  };
+
+  const isAuthForm = !user && !loading;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -61,18 +126,19 @@ export default function AuthModal({ open, onClose }) {
         aria-label="Account"
         onClick={e => e.stopPropagation()}
       >
-        {/* ── Header ── */}
+        {/* ── Branded header ─────────────────────────────────────────────── */}
         <div className="auth-modal__header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <div className="auth-modal__icon">
-              <User size={18} />
+              {mode === 'new-password' ? <KeyRound size={18} /> : <User size={18} />}
             </div>
             <div className="auth-modal__title-wrap">
+              <div className="auth-modal__brand">SkyHelper</div>
               <div className="auth-modal__title">
-                {user ? 'Account' : titleMap[mode]}
+                {user ? 'Account' : TITLES[mode]}
               </div>
               {!user && (
-                <div className="auth-modal__subtitle">{subtitleMap[mode]}</div>
+                <div className="auth-modal__subtitle">{SUBS[mode]}</div>
               )}
             </div>
           </div>
@@ -81,8 +147,8 @@ export default function AuthModal({ open, onClose }) {
           </button>
         </div>
 
-        {/* ── Mode tabs (only for sign-in / sign-up) ── */}
-        {!user && !loading && mode !== 'reset' && (
+        {/* ── Sign-in / Sign-up tabs ──────────────────────────────────────── */}
+        {isAuthForm && mode !== 'reset' && mode !== 'new-password' && (
           <div className="auth-modal__tabs">
             <button
               className={`auth-modal__tab${mode === 'signin' ? ' active' : ''}`}
@@ -99,15 +165,15 @@ export default function AuthModal({ open, onClose }) {
           </div>
         )}
 
-        {/* ── Body ── */}
+        {/* ── Body ───────────────────────────────────────────────────────── */}
         <div className="auth-modal__body">
 
-          {/* Supabase not configured notice */}
+          {/* Supabase not configured */}
           {!supabaseEnabled && (
             <div className="info-box">
               <strong style={{ display: 'block', marginBottom: 6 }}>Auth not configured</strong>
               Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> to your{' '}
-              <code>.env</code> file to enable accounts.
+              <code>.env</code> file.
             </div>
           )}
 
@@ -122,10 +188,9 @@ export default function AuthModal({ open, onClose }) {
             </div>
           )}
 
-          {/* Loading */}
           {loading && <div className="spinner" style={{ margin: '16px auto' }} />}
 
-          {/* ── Signed-in state ── */}
+          {/* ── Signed-in view ─────────────────────────────────────────── */}
           {!loading && user && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div className="auth-modal__user-card">
@@ -144,108 +209,126 @@ export default function AuthModal({ open, onClose }) {
             </div>
           )}
 
-          {/* ── Auth forms ── */}
-          {!loading && !user && (
+          {/* ── Auth forms ─────────────────────────────────────────────── */}
+          {isAuthForm && (
             <>
-              {/* Back button for reset mode */}
-              {mode === 'reset' && (
-                <button
-                  className="btn-ghost btn-sm"
-                  onClick={() => switchMode('signin')}
-                  style={{ alignSelf: 'flex-start', marginBottom: -4 }}
-                >
-                  <ArrowLeft size={12} /> Back to sign in
-                </button>
-              )}
-
               {/* Email field */}
-              <div className="field" style={{ margin: 0 }}>
-                <label>Email</label>
-                <div className="auth-modal__input-wrap">
-                  <span className="auth-modal__input-icon"><AtSign size={14} /></span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    disabled={!supabaseEnabled || busy}
-                    onKeyDown={e => e.key === 'Enter' && mode === 'signin' && signIn()}
-                    autoComplete="email"
-                  />
-                </div>
-              </div>
-
-              {/* Password field */}
-              {mode !== 'reset' && (
+              {mode !== 'new-password' && (
                 <div className="field" style={{ margin: 0 }}>
-                  <label>Password</label>
+                  <label>Email</label>
                   <div className="auth-modal__input-wrap">
-                    <span className="auth-modal__input-icon"><Lock size={14} /></span>
+                    <span className="auth-modal__input-icon"><AtSign size={14} /></span>
                     <input
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      placeholder="••••••••"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      placeholder="you@example.com"
                       disabled={!supabaseEnabled || busy}
                       onKeyDown={e => e.key === 'Enter' && mode === 'signin' && signIn()}
-                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                      autoComplete="email"
                     />
                   </div>
                 </div>
               )}
 
-              {/* Primary action */}
+              {/* Password fields */}
+              {(mode === 'signin' || mode === 'signup') && (
+                <div className="field" style={{ margin: 0 }}>
+                  <label>Password</label>
+                  <PasswordInput
+                    value={password}
+                    onChange={setPassword}
+                    onEnter={mode === 'signin' ? signIn : undefined}
+                    disabled={!supabaseEnabled || busy}
+                    autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                  />
+                </div>
+              )}
+
+              {/* New password fields */}
+              {mode === 'new-password' && (
+                <>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>New password</label>
+                    <PasswordInput
+                      value={password}
+                      onChange={setPassword}
+                      disabled={!supabaseEnabled || busy}
+                      autoComplete="new-password"
+                      placeholder="At least 8 characters"
+                    />
+                  </div>
+                  <div className="field" style={{ margin: 0 }}>
+                    <label>Confirm password</label>
+                    <PasswordInput
+                      value={confirm}
+                      onChange={setConfirm}
+                      onEnter={setNewPassword}
+                      disabled={!supabaseEnabled || busy}
+                      autoComplete="new-password"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Perks list — only on signup */}
+              {mode === 'signup' && (
+                <div className="auth-modal__perks">
+                  {PERKS.map(({ icon: Icon, text }) => (
+                    <div key={text} className="auth-modal__perk">
+                      <Icon size={13} style={{ color: 'var(--gold)', flexShrink: 0 }} />
+                      <span>{text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Primary CTA */}
               <div className="auth-modal__actions">
                 {mode === 'signin' && (
-                  <button
-                    className="btn-primary"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                    onClick={signIn}
-                    disabled={!email || !password || !supabaseEnabled || busy}
-                  >
+                  <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={signIn} disabled={!email || !password || !supabaseEnabled || busy}>
                     {busy ? <span className="spinner spinner-sm" /> : <LogIn size={14} />}
                     Sign in
                   </button>
                 )}
                 {mode === 'signup' && (
-                  <button
-                    className="btn-primary"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                    onClick={signUp}
-                    disabled={!email || !password || !supabaseEnabled || busy}
-                  >
+                  <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={signUp} disabled={!email || !password || !supabaseEnabled || busy}>
                     {busy ? <span className="spinner spinner-sm" /> : <Mail size={14} />}
                     Create account
                   </button>
                 )}
                 {mode === 'reset' && (
-                  <button
-                    className="btn-primary"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                    onClick={resetPassword}
-                    disabled={!email || !supabaseEnabled || busy}
-                  >
+                  <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={sendReset} disabled={!email || !supabaseEnabled || busy}>
                     {busy ? <span className="spinner spinner-sm" /> : <KeyRound size={14} />}
                     Send reset email
                   </button>
                 )}
+                {mode === 'new-password' && (
+                  <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+                    onClick={setNewPassword} disabled={!password || !confirm || !supabaseEnabled || busy}>
+                    {busy ? <span className="spinner spinner-sm" /> : <ShieldCheck size={14} />}
+                    Set new password
+                  </button>
+                )}
               </div>
 
-              {/* Forgot password link — only on sign-in tab */}
+              {/* Footer links */}
               {mode === 'signin' && (
-                <>
-                  <div className="auth-modal__divider">
-                    <span>or</span>
-                  </div>
-                  <button
-                    className="btn-ghost btn-sm"
-                    style={{ alignSelf: 'center' }}
-                    onClick={() => switchMode('reset')}
-                    disabled={!supabaseEnabled}
-                  >
-                    <KeyRound size={12} /> Forgot password?
+                <div className="auth-modal__footer-links">
+                  <button className="auth-modal__text-link" onClick={() => switchMode('reset')} disabled={!supabaseEnabled}>
+                    Forgot password?
                   </button>
-                </>
+                </div>
+              )}
+              {mode === 'reset' && (
+                <div className="auth-modal__footer-links">
+                  <button className="auth-modal__text-link" onClick={() => switchMode('signin')}>
+                    <ArrowLeft size={11} /> Back to sign in
+                  </button>
+                </div>
               )}
             </>
           )}

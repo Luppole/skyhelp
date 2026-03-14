@@ -103,14 +103,7 @@ export const fetchNetWorth     = (username, profileId, options = {}) =>
   request(`/player/${username}/networth${profileId ? `?profile_id=${profileId}` : ''}`, options);
 
 // Garden / Farming
-export const fetchFarmingUpgrades = (username, profileId, overrides, options = {}) => {
-  const params = new URLSearchParams();
-  if (profileId) params.set('profile_id', profileId);
-  if (overrides && Object.keys(overrides).length)
-    params.set('overrides', JSON.stringify(overrides));
-  const qs = params.toString();
-  return request(`/garden/farming-upgrades/${encodeURIComponent(username)}${qs ? `?${qs}` : ''}`, options);
-};
+export const fetchEnchantPrices = (options = {}) => request('/garden/enchant-prices', options);
 
 // Mayor
 export const fetchMayor = (options = {}) => request('/mayor', options);

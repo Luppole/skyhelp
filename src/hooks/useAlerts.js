@@ -21,7 +21,9 @@ export function useAlerts(bazaarData, userId) {
   const [recentlyTriggered, setRecentlyTriggered] = useState([]);
   const notifiedIds = useRef(new Set());
 
-  // Check alerts whenever bazaar data updates
+  // Check alerts whenever bazaar data updates.
+  // Uses setAlerts functional updater to read prevAlerts, avoiding
+  // a stale-closure dependency on `alerts` that would cause an infinite loop.
   useEffect(() => {
     if (!bazaarData?.flips) return;
     const priceMap = {};
@@ -29,39 +31,45 @@ export function useAlerts(bazaarData, userId) {
       priceMap[f.item_id] = { buy: f.sell_price, sell: f.buy_price };
     }
 
-    let anyTriggered = false;
-    const newAlerts = alerts.map(alert => {
-      const prices = priceMap[alert.itemId];
-      if (!prices) return alert;
-      const currentPrice = alert.priceType === 'sell' ? prices.sell : prices.buy;
-      const triggered =
-        alert.direction === 'below' ? currentPrice <= alert.targetPrice
-                                    : currentPrice >= alert.targetPrice;
+    // Collect newly triggered alerts synchronously inside the updater,
+    // then fire side-effects (notifications, recentlyTriggered) after.
+    const newlyTriggered = [];
 
-      if (triggered && !notifiedIds.current.has(alert.id)) {
-        notifiedIds.current.add(alert.id);
-        anyTriggered = true;
-        setRecentlyTriggered(prev => [{
-          ...alert,
-          currentPrice,
-          triggeredAt: Date.now(),
-        }, ...prev.slice(0, 9)]);
+    setAlerts(prevAlerts => {
+      let anyTriggered = false;
+      const newAlerts = prevAlerts.map(alert => {
+        const prices = priceMap[alert.itemId];
+        if (!prices) return alert;
+        const currentPrice = alert.priceType === 'sell' ? prices.sell : prices.buy;
+        const triggered =
+          alert.direction === 'below' ? currentPrice <= alert.targetPrice
+                                      : currentPrice >= alert.targetPrice;
 
-        // Browser notification
-        if ('Notification' in window && Notification.permission === 'granted') {
+        if (triggered && !notifiedIds.current.has(alert.id)) {
+          notifiedIds.current.add(alert.id);
+          anyTriggered = true;
+          newlyTriggered.push({ ...alert, currentPrice, triggeredAt: Date.now() });
+        }
+        return { ...alert, currentPrice, triggered };
+      });
+
+      if (anyTriggered) {
+        saveAlerts(newAlerts);
+        return newAlerts;
+      }
+      return prevAlerts;
+    });
+
+    if (newlyTriggered.length > 0) {
+      setRecentlyTriggered(prev => [...newlyTriggered, ...prev.slice(0, 9)]);
+      if ('Notification' in window && Notification.permission === 'granted') {
+        for (const alert of newlyTriggered) {
           new Notification(`🔔 SkyBlock Alert: ${alert.itemName}`, {
-            body: `Price ${alert.direction === 'below' ? 'dropped below' : 'rose above'} ${alert.targetPrice.toLocaleString()} coins (now ${Math.round(currentPrice).toLocaleString()})`,
+            body: `Price ${alert.direction === 'below' ? 'dropped below' : 'rose above'} ${alert.targetPrice.toLocaleString()} coins (now ${Math.round(alert.currentPrice).toLocaleString()})`,
             icon: '/favicon.ico',
           });
         }
       }
-
-      return { ...alert, currentPrice, triggered };
-    });
-
-    if (anyTriggered) {
-      setAlerts(newAlerts);
-      saveAlerts(newAlerts);
     }
   }, [bazaarData]);
 
