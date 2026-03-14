@@ -79,53 +79,86 @@ async def _fetch_uuid(username: str) -> Optional[str]:
         return data.get("id")
 
 
+def _v2_headers(api_key: str) -> dict:
+    """Hypixel API v2 uses the API-Key request header instead of ?key= query param."""
+    return {"API-Key": api_key}
+
+
 async def get_player_data(api_key: str, uuid: str) -> dict:
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.get(
-            f"{HYPIXEL_BASE}/player",
-            params={"key": api_key, "uuid": uuid},
+            f"{HYPIXEL_BASE}/v2/player",
+            params={"uuid": uuid},
+            headers=_v2_headers(api_key),
         )
         if not r.is_success:
-            raise ValueError(f"Hypixel player error: {_hypixel_error(r)}")
+            raise ValueError(f"Hypixel player error {r.status_code}: {_hypixel_error(r)}")
         return r.json()
 
 
 async def get_player_auctions(api_key: str, uuid: str) -> dict:
-    """Fetch a player's active AH auctions by UUID (not cached — changes frequently)."""
+    """Player's active AH auctions — not cached (changes every minute)."""
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.get(
             f"{HYPIXEL_BASE}/skyblock/auction",
-            params={"key": api_key, "player": uuid},
+            params={"player": uuid},
+            headers=_v2_headers(api_key),
         )
         if not r.is_success:
-            raise ValueError(f"Hypixel player auctions error: {_hypixel_error(r)}")
+            raise ValueError(f"Hypixel player auctions error {r.status_code}: {_hypixel_error(r)}")
         return r.json()
 
 
 async def get_profile_auctions(api_key: str, profile_id: str) -> dict:
-    """Fetch all active auctions for a SkyBlock profile ID."""
+    """Active auctions for a specific SkyBlock profile ID."""
     async with httpx.AsyncClient(timeout=15) as client:
         r = await client.get(
             f"{HYPIXEL_BASE}/skyblock/auction",
-            params={"key": api_key, "profile": profile_id},
+            params={"profile": profile_id},
+            headers=_v2_headers(api_key),
         )
         if not r.is_success:
-            raise ValueError(f"Hypixel profile auctions error: {_hypixel_error(r)}")
+            raise ValueError(f"Hypixel profile auctions error {r.status_code}: {_hypixel_error(r)}")
         return r.json()
 
 
+# ── v2 SkyBlock profile endpoints ────────────────────────────────────────────
+
 async def get_skyblock_profiles(api_key: str, uuid: str) -> dict:
-    """Fetch SkyBlock profiles — cached 3 min to avoid hammering the Hypixel rate limit."""
+    """All SkyBlock profiles for a player — cached 3 min."""
     cache_key = f"sb_profiles:{uuid}"
     return await cached(cache_key, ttl=180, fn=lambda: _fetch_skyblock_profiles(api_key, uuid))
 
 
 async def _fetch_skyblock_profiles(api_key: str, uuid: str) -> dict:
+    """GET /v2/skyblock/profiles?uuid=UUID  (API-Key header auth)."""
     async with httpx.AsyncClient(timeout=20) as client:
         r = await client.get(
-            f"{HYPIXEL_BASE}/skyblock/profiles",
-            params={"key": api_key, "uuid": uuid},
+            f"{HYPIXEL_BASE}/v2/skyblock/profiles",
+            params={"uuid": uuid},
+            headers=_v2_headers(api_key),
         )
         if not r.is_success:
-            raise ValueError(f"Hypixel profiles error {r.status_code}: {_hypixel_error(r)}")
+            raise ValueError(f"Hypixel v2 profiles error {r.status_code}: {_hypixel_error(r)}")
+        return r.json()
+
+
+async def get_skyblock_profile(api_key: str, profile_id: str) -> dict:
+    """Single SkyBlock profile by ID — cached 3 min.
+    Uses GET /v2/skyblock/profile?profile=PROFILE_ID  (much lighter than fetching all profiles).
+    """
+    cache_key = f"sb_profile:{profile_id}"
+    return await cached(cache_key, ttl=180, fn=lambda: _fetch_skyblock_profile(api_key, profile_id))
+
+
+async def _fetch_skyblock_profile(api_key: str, profile_id: str) -> dict:
+    """GET /v2/skyblock/profile?profile=PROFILE_ID  (API-Key header auth)."""
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(
+            f"{HYPIXEL_BASE}/v2/skyblock/profile",
+            params={"profile": profile_id},
+            headers=_v2_headers(api_key),
+        )
+        if not r.is_success:
+            raise ValueError(f"Hypixel v2 profile error {r.status_code}: {_hypixel_error(r)}")
         return r.json()

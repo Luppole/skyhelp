@@ -12,8 +12,10 @@ except ImportError:
     HAS_NBTLIB = False
 
 from ..utils.hypixel import (
-    get_player_uuid, get_player_data, get_skyblock_profiles,
-    get_player_auctions, get_profile_auctions, get_server_api_key,
+    get_player_uuid, get_player_data,
+    get_skyblock_profiles, get_skyblock_profile,
+    get_player_auctions, get_profile_auctions,
+    get_server_api_key,
 )
 from ..utils.calculators import analyze_profile
 from ..limiter import limiter
@@ -189,14 +191,17 @@ async def profile_stats(
         uuid = await get_player_uuid(username)
     except Exception:
         raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
+    if not uuid:
+        raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
 
+    # Use the v2 single-profile endpoint — no need to load all profiles
     try:
-        profiles_data = await get_skyblock_profiles(api_key, uuid)
+        profile_data = await get_skyblock_profile(api_key, profile_id)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
-    profiles = profiles_data.get("profiles", []) or []
-    target = next((p for p in profiles if p.get("profile_id") == profile_id), None)
+    # v2 wraps the profile under "profile" key
+    target = profile_data.get("profile") or profile_data
 
     if not target:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -231,18 +236,23 @@ async def networth(
         uuid = await get_player_uuid(username)
     except Exception:
         raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
-
-    try:
-        profiles_data = await get_skyblock_profiles(api_key, uuid)
-    except ValueError as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-    profiles = profiles_data.get("profiles", []) or []
+    if not uuid:
+        raise HTTPException(status_code=404, detail=f"Player '{username}' not found")
 
     if profile_id:
-        profile = next((p for p in profiles if p.get("profile_id") == profile_id), None)
+        # v2: fetch the specific profile directly — no need to load all profiles
+        try:
+            profile_data = await get_skyblock_profile(api_key, profile_id)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+        profile = profile_data.get("profile") or profile_data
     else:
-        # Most recently active
+        # No profile_id given — load all profiles to find the most recently active one
+        try:
+            profiles_data = await get_skyblock_profiles(api_key, uuid)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+        profiles = profiles_data.get("profiles", []) or []
         profile = None
         latest = 0
         for p in profiles:
@@ -251,6 +261,8 @@ async def networth(
             if t > latest:
                 latest = t
                 profile = p
+        if not profile:
+            profile = next((p for p in profiles if p.get("selected")), None)
 
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
