@@ -1059,25 +1059,29 @@ tr.snipe-row--hot:hover td { background: rgba(251,191,36,0.07); }
 
 /* ── Net worth ───────────────────────────────────────────────────────────── */
 .nw-total {
-  font-size: 46px; font-weight: 900; letter-spacing: -1.5px; line-height: 1;
+  font-size: 52px; font-weight: 900; letter-spacing: -2px; line-height: 1;
   background: linear-gradient(135deg, #fbbf24, #fb923c, #fbbf24);
   background-size: 200%;
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   animation: text-shimmer 4s ease-in-out infinite;
-  filter: drop-shadow(0 0 24px rgba(251,191,36,0.3));
+  filter: drop-shadow(0 0 28px rgba(251,191,36,0.35));
 }
 .nw-breakdown {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px; margin-top: 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
 }
 .nw-item {
-  background: var(--bg-3); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 14px 16px;
-  transition: transform 0.2s, border-color 0.2s;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
-.nw-item:hover { transform: translateY(-2px); border-color: var(--border-bright); }
-.nw-item__label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); margin-bottom: 5px; }
-.nw-item__value { font-size: 17px; font-weight: 800; color: var(--text); }
+.nw-item:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-bright);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+.nw-item__label { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); margin-bottom: 7px; }
+.nw-item__value { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 10px; }
 
 /* ── Skeleton ────────────────────────────────────────────────────────────── */
 .skeleton {

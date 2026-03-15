@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wallet, RefreshCw, User, Save, History, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Wallet, RefreshCw, User, Save, History, Trash2, ChevronDown, ChevronUp, Package, PawPrint } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import PageHeader from './ui/PageHeader';
 import { fetchPlayer, fetchNetWorth, formatCoins } from '../utils/api';
@@ -84,7 +84,7 @@ function ItemRow({ item, onSelect }) {
 
 function ItemsTable({ items, onSelect }) {
   if (!items || items.length === 0) {
-    return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Nothing found here.</div>;
+    return <div className="text-muted" style={{ fontSize: 13, padding: '24px 0', textAlign: 'center' }}>Nothing found here.</div>;
   }
   return (
     <div className="table-wrap" style={{ border: 'none', maxHeight: 420, overflowY: 'auto' }}>
@@ -106,10 +106,10 @@ function ItemsTable({ items, onSelect }) {
 
 function EcPagesView({ pages, onSelect }) {
   const [activePage, setActivePage] = useState(0);
-  if (!pages || pages.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Ender Chest is empty.</div>;
+  if (!pages || pages.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '24px 0', textAlign: 'center' }}>Ender Chest is empty.</div>;
   const cur = pages[Math.min(activePage, pages.length - 1)];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {pages.map((p, i) => (
           <button key={i} onClick={() => setActivePage(i)} className={`tab-pill${activePage === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
@@ -125,10 +125,10 @@ function EcPagesView({ pages, onSelect }) {
 
 function WardrobeSetsView({ sets, onSelect }) {
   const [activeSet, setActiveSet] = useState(0);
-  if (!sets || sets.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Wardrobe is empty.</div>;
+  if (!sets || sets.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '24px 0', textAlign: 'center' }}>Wardrobe is empty.</div>;
   const cur = sets[Math.min(activeSet, sets.length - 1)];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {sets.map((s, i) => (
           <button key={i} onClick={() => setActiveSet(i)} className={`tab-pill${activeSet === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
@@ -163,10 +163,10 @@ function WardrobeSetsView({ sets, onSelect }) {
 
 function BackpackSlotsView({ slots, onSelect }) {
   const [activeSlot, setActiveSlot] = useState(0);
-  if (!slots || slots.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No backpacks found.</div>;
+  if (!slots || slots.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '24px 0', textAlign: 'center' }}>No backpacks found.</div>;
   const cur = slots[Math.min(activeSlot, slots.length - 1)];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {slots.map((s, i) => (
           <button key={i} onClick={() => setActiveSlot(i)} className={`tab-pill${activeSlot === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
@@ -209,6 +209,40 @@ function HistTooltip({ active, payload }) {
   );
 }
 
+// ── Section collapse header ────────────────────────────────────────────────────
+function SectionHeader({ icon: Icon, title, subtitle, open, onToggle, accentColor }) {
+  return (
+    <button
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        width: '100%', background: 'none', border: 'none',
+        padding: '0 0 16px 0', cursor: 'pointer', textAlign: 'left',
+        borderBottom: '1px solid var(--border)',
+        marginBottom: 20,
+      }}
+    >
+      {Icon && (
+        <span style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 32, height: 32, borderRadius: 8,
+          background: accentColor ? `${accentColor}18` : 'var(--bg-4)',
+          color: accentColor || 'var(--text-muted)', flexShrink: 0,
+        }}>
+          <Icon size={15} />
+        </span>
+      )}
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{title}</div>
+        {subtitle && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{subtitle}</div>}
+      </div>
+      <span style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>
+        {open ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+      </span>
+    </button>
+  );
+}
+
 export default function NetWorth() {
   const { user }                = useSupabaseUser();
   const [username, setUsername] = useUserData('player_ign', '');
@@ -220,12 +254,16 @@ export default function NetWorth() {
   const [invTab, setInvTab]         = useState('inv');
   const [selectedItem, setSelectedItem] = useState(null);
 
+  // Collapsible section state
+  const [invOpen,  setInvOpen]  = useState(true);
+  const [petsOpen, setPetsOpen] = useState(true);
+
   // Snapshot / tracking state
   const { saveSnapshot, loadSnapshots, deleteSnapshot } = usePlayerTracking(user?.id);
   const [snapshots, setSnapshots]         = useState([]);
   const [snapshotsLoading, setSnapshotsLoading] = useState(false);
   const [showHistory, setShowHistory]     = useState(false);
-  const [saveMsg, setSaveMsg]             = useState('');   // '' | 'saving' | 'saved' | 'error'
+  const [saveMsg, setSaveMsg]             = useState('');
 
   async function fetchProfiles(ign) {
     try {
@@ -242,6 +280,7 @@ export default function NetWorth() {
     if (!username.trim()) return;
     setLoading(true); setError(''); setData(null); setInvTab('inv');
     setShowHistory(false); setSnapshots([]);
+    setInvOpen(true); setPetsOpen(true);
     try {
       let pid = profileId;
       if (!pid) pid = await fetchProfiles(username.trim());
@@ -273,7 +312,6 @@ export default function NetWorth() {
     setSnapshots(prev => prev.filter(s => s.id !== id));
   }
 
-  // Chart data — array of { date, value } from snapshots (oldest first)
   const historyChartData = snapshots
     .slice()
     .reverse()
@@ -290,6 +328,9 @@ export default function NetWorth() {
     name: LABELS[key] || key, value, color: COLORS[key] || '#888',
   }));
 
+  // Total items value (all inventory locations)
+  const invTotal = data ? INV_TABS.reduce((sum, t) => sum + tabTotal(t, data), 0) : 0;
+
   return (
     <div className="page">
       {selectedItem && <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />}
@@ -299,7 +340,7 @@ export default function NetWorth() {
         description="Estimates total wealth across purse, bank, pets, and every inventory location. Save snapshots to track progress over time."
       />
 
-      {/* Search toolbar */}
+      {/* ── Search toolbar ─────────────────────────────────────────────── */}
       <div className="toolbar">
         <div className="field">
           <label>Minecraft Username</label>
@@ -326,6 +367,7 @@ export default function NetWorth() {
         </button>
       </div>
 
+      {/* ── Error ─────────────────────────────────────────────────────── */}
       {error && (
         <div className="error-box" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>{error}</span>
@@ -335,6 +377,7 @@ export default function NetWorth() {
         </div>
       )}
 
+      {/* ── Loading skeletons ──────────────────────────────────────────── */}
       {loading && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
           {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} rows={3} />)}
@@ -342,26 +385,76 @@ export default function NetWorth() {
       )}
 
       {data && !loading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* ── Total card ──────────────────────────────────────────────── */}
-          <div className="card card--glow-gold" style={{ textAlign: 'center', padding: 32 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginBottom: 4 }}>
-              <User size={18} style={{ color: 'var(--gold)' }} />
-              <span style={{ fontSize: 18, fontWeight: 700 }}>{data.username}</span>
-              {data.profile && <span className="tag tag-blue">{data.profile}</span>}
+          {/* ── Hero total card ────────────────────────────────────────── */}
+          <div className="card card--glow-gold" style={{ padding: '32px 28px', textAlign: 'center' }}>
+            {/* Player identity */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 6 }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: 'rgba(245,197,24,0.12)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: 'var(--gold)',
+              }}>
+                <User size={18} />
+              </div>
+              <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.3px' }}>{data.username}</span>
+              {data.profile && <span className="tag tag-blue" style={{ fontSize: 11 }}>{data.profile}</span>}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+
+            {/* Label */}
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 10 }}>
               Estimated Net Worth
             </div>
+
+            {/* Big number */}
             <div className="nw-total">
               <AnimatedNumber value={data.total} formatter={formatCoins} />
             </div>
-            <div className="text-muted" style={{ fontSize: 12, marginTop: 6, marginBottom: 16 }}>
-              Based on live AH/bazaar prices. Actual net worth may differ.
+
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 24 }}>
+              Based on live AH/bazaar prices · Actual value may differ
             </div>
 
-            {/* Track / Save actions */}
+            {/* Divider */}
+            <div style={{ height: 1, background: 'var(--border)', margin: '0 auto 20px', width: '80%' }} />
+
+            {/* Quick stats row */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+              gap: 12,
+              maxWidth: 560,
+              margin: '0 auto 24px',
+            }}>
+              {[
+                { label: 'Purse',    key: 'purse',    color: '#f5c518' },
+                { label: 'Bank',     key: 'bank',     color: '#ff9f43' },
+                { label: 'Pets',     key: 'pets',     color: '#bc8cff' },
+                { label: 'Items',    key: null,       color: '#58a6ff', value: invTotal },
+              ].map(({ label, key, color, value }) => {
+                const v = value !== undefined ? value : (data.breakdown[key] ?? 0);
+                return (
+                  <div key={label} style={{
+                    background: 'var(--bg-2)',
+                    border: '1px solid var(--border)',
+                    borderTop: `2px solid ${color}`,
+                    borderRadius: 10,
+                    padding: '12px 14px',
+                  }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 5 }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color }}>
+                      {formatCoins(v)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Actions */}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
               <button
                 className={`btn-secondary btn-sm${saveMsg === 'saved' ? ' btn-success' : ''}`}
@@ -384,13 +477,13 @@ export default function NetWorth() {
               </button>
             </div>
             {!user && (
-              <div className="text-muted" style={{ fontSize: 11, marginTop: 6 }}>
+              <div className="text-muted" style={{ fontSize: 11, marginTop: 8 }}>
                 Sign in to save snapshots and track progress over time.
               </div>
             )}
           </div>
 
-          {/* ── History panel ───────────────────────────────────────────── */}
+          {/* ── History panel ─────────────────────────────────────────── */}
           {showHistory && (
             <div className="card">
               <div className="card__title">
@@ -403,12 +496,11 @@ export default function NetWorth() {
               {snapshotsLoading ? (
                 <div className="spinner" />
               ) : snapshots.length === 0 ? (
-                <div className="text-muted" style={{ fontSize: 13, padding: '16px 0' }}>
-                  No snapshots yet. Hit <strong>Save Snapshot</strong> above to start tracking this player.
+                <div className="text-muted" style={{ fontSize: 13, padding: '20px 0' }}>
+                  No snapshots yet. Hit <strong>Save Snapshot</strong> above to start tracking.
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {/* History area chart */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                   {historyChartData.length >= 2 && (
                     <div style={{ height: 180 }}>
                       <ResponsiveContainer width="100%" height="100%">
@@ -431,8 +523,6 @@ export default function NetWorth() {
                       </ResponsiveContainer>
                     </div>
                   )}
-
-                  {/* Snapshot rows */}
                   <div className="table-wrap" style={{ border: 'none' }}>
                     <table>
                       <thead>
@@ -481,123 +571,240 @@ export default function NetWorth() {
             </div>
           )}
 
-          {/* ── Breakdown tiles + Pie chart ─────────────────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-            <div className="nw-breakdown">
-              {breakdownEntries.map(([key, value]) => (
-                <div key={key} className="nw-item" style={{ borderLeft: `3px solid ${COLORS[key] || '#888'}` }}>
-                  <div className="nw-item__label">{LABELS[key] || key}</div>
-                  <div className="nw-item__value" style={{ color: COLORS[key] || 'var(--gold)' }}>
-                    {formatCoins(value)}
-                  </div>
-                  <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
-                    {data.total > 0 ? Math.round((value / data.total) * 100) : 0}% of total
-                  </div>
+          {/* ── Wealth Breakdown ──────────────────────────────────────── */}
+          <div className="card" style={{ padding: '24px 24px 20px' }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              paddingBottom: 18, borderBottom: '1px solid var(--border)', marginBottom: 20,
+            }}>
+              <span style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 32, height: 32, borderRadius: 8,
+                background: 'rgba(245,197,24,0.12)', color: 'var(--gold)', flexShrink: 0,
+              }}>
+                <Wallet size={15} />
+              </span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Wealth Breakdown</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                  {breakdownEntries.length} categories
                 </div>
-              ))}
+              </div>
             </div>
 
-            {pieData.length > 0 && (
-              <div className="card">
-                <div className="card__title">Wealth Distribution</div>
-                <ResponsiveContainer width="100%" height={240}>
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" outerRadius={85} dataKey="value" stroke="none">
-                      {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v, name) => [formatCoins(v), name]}
-                      contentStyle={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 6 }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 11, color: 'var(--text-muted)' }} />
-                  </PieChart>
-                </ResponsiveContainer>
+            <div style={{ display: 'grid', gridTemplateColumns: pieData.length > 0 ? '1fr minmax(240px, 300px)' : '1fr', gap: 24, alignItems: 'start' }}>
+
+              {/* Breakdown tiles */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12 }}>
+                {breakdownEntries.map(([key, value]) => {
+                  const pct = data.total > 0 ? (value / data.total) * 100 : 0;
+                  const color = COLORS[key] || '#888';
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        background: 'var(--bg-2)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 10,
+                        padding: '14px 16px',
+                        borderTop: `2px solid ${color}`,
+                        transition: 'border-color 0.2s, transform 0.15s',
+                      }}
+                    >
+                      <div style={{
+                        fontSize: 10, fontWeight: 800, textTransform: 'uppercase',
+                        letterSpacing: '0.7px', color: 'var(--text-muted)', marginBottom: 7,
+                      }}>
+                        {LABELS[key] || key}
+                      </div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color, marginBottom: 10, lineHeight: 1 }}>
+                        {formatCoins(value)}
+                      </div>
+                      {/* Progress bar */}
+                      <div style={{ height: 3, background: 'var(--bg-4)', borderRadius: 2, overflow: 'hidden' }}>
+                        <div style={{
+                          width: `${Math.max(pct, pct > 0 ? 2 : 0)}%`,
+                          height: '100%', background: color, borderRadius: 2,
+                          transition: 'width 0.6s ease',
+                        }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 5 }}>
+                        {pct.toFixed(1)}% of total
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Pie chart */}
+              {pieData.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: 8 }}>
+                    Distribution
+                  </div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} innerRadius={36} dataKey="value" stroke="none">
+                        {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                      </Pie>
+                      <Tooltip
+                        formatter={(v, name) => [formatCoins(v), name]}
+                        contentStyle={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 6 }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11, color: 'var(--text-muted)' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Inventory browser ─────────────────────────────────────── */}
+          <div className="card" style={{ padding: '20px 24px' }}>
+            <SectionHeader
+              icon={Package}
+              title="Inventory Browser"
+              subtitle={invTotal > 0 ? `~${formatCoins(invTotal)} total across all locations` : 'Browse items by location'}
+              open={invOpen}
+              onToggle={() => setInvOpen(o => !o)}
+              accentColor="#58a6ff"
+            />
+
+            {invOpen && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Tab bar */}
+                <div className="tab-pills" style={{ gap: 6 }}>
+                  {INV_TABS.map(t => {
+                    const count = tabCount(t, data);
+                    const total = tabTotal(t, data);
+                    return (
+                      <button
+                        key={t.id}
+                        className={`tab-pill${invTab === t.id ? ' tab-pill--active' : ''}`}
+                        onClick={() => setInvTab(t.id)}
+                      >
+                        {t.label}
+                        {count > 0 && (
+                          <span style={{
+                            marginLeft: 5, background: 'var(--bg-4)', borderRadius: 10,
+                            padding: '1px 6px', fontSize: 10, color: 'var(--text-muted)',
+                          }}>
+                            {count}
+                          </span>
+                        )}
+                        {total > 0 && invTab === t.id && (
+                          <span style={{ marginLeft: 4, color: 'var(--gold)', fontWeight: 700, fontSize: 10 }}>
+                            · {formatCoins(total)}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Active tab content */}
+                {INV_TABS.map(t => invTab === t.id && (
+                  <div key={t.id} style={{
+                    background: 'var(--bg-2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 10,
+                    padding: '16px 18px',
+                  }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      marginBottom: 14,
+                    }}>
+                      <span style={{ fontSize: 13, fontWeight: 700 }}>{t.label}</span>
+                      {(() => {
+                        const total = tabTotal(t, data);
+                        return total > 0 ? (
+                          <span style={{ color: 'var(--gold)', fontWeight: 700, fontSize: 13 }}>
+                            ~{formatCoins(total)}
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
+                    <TabContent tab={t} data={data} onSelect={setSelectedItem} />
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* ── Inventory browser ─────────────────────────────────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="tab-pills">
-              {INV_TABS.map(t => {
-                const count = tabCount(t, data);
-                const total = tabTotal(t, data);
-                return (
-                  <button
-                    key={t.id}
-                    className={`tab-pill${invTab === t.id ? ' tab-pill--active' : ''}`}
-                    onClick={() => setInvTab(t.id)}
-                  >
-                    {t.label}
-                    {count > 0 && (
-                      <span style={{ marginLeft: 5, background: 'var(--bg-4)', borderRadius: 10, padding: '1px 6px', fontSize: 10, color: 'var(--text-muted)' }}>
-                        {count}
-                      </span>
-                    )}
-                    {total > 0 && invTab === t.id && (
-                      <span style={{ marginLeft: 4, color: 'var(--gold)', fontWeight: 700, fontSize: 10 }}>
-                        · {formatCoins(total)}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {INV_TABS.map(t => invTab === t.id && (
-              <div key={t.id} className="card">
-                <div className="card__title">
-                  {t.label}
-                  {(() => {
-                    const total = tabTotal(t, data);
-                    return total > 0 ? (
-                      <span style={{ marginLeft: 'auto', color: 'var(--gold)', fontWeight: 700, fontSize: 14, textTransform: 'none', letterSpacing: 0 }}>
-                        ~{formatCoins(total)}
-                      </span>
-                    ) : null;
-                  })()}
-                </div>
-                <TabContent tab={t} data={data} onSelect={setSelectedItem} />
-              </div>
-            ))}
-          </div>
-
-          {/* ── Pets ─────────────────────────────────────────────────────── */}
+          {/* ── Pets ──────────────────────────────────────────────────── */}
           {data.pets?.length > 0 && (
-            <div className="card">
-              <div className="card__title">
-                🐾 Pets by Value
-                <span style={{ marginLeft: 'auto', color: 'var(--purple)', fontWeight: 700, fontSize: 14, textTransform: 'none', letterSpacing: 0 }}>
-                  ~{formatCoins(data.breakdown?.pets ?? 0)}
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(195px, 1fr))', gap: 8 }}>
-                {data.pets.slice(0, 20).map((pet, i) => (
-                  <div key={i} style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                      <span className="text-bold" style={{ fontSize: 13 }}>
-                        {pet.type?.replace(/_/g, ' ')}
-                        {pet.level ? <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11, marginLeft: 5 }}>Lv.{pet.level}</span> : null}
-                      </span>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        {pet.active && <span className="tag tag-gold" style={{ fontSize: 9 }}>Active</span>}
-                        {pet.skin   && <span className="tag" style={{ fontSize: 9, background: 'rgba(57,208,216,0.15)', color: '#39d0d8' }}>Skin</span>}
-                        {pet.candy > 0 && <span className="tag" style={{ fontSize: 9, background: 'rgba(255,165,0,0.15)', color: '#ff9f43' }}>{pet.candy}🍬</span>}
+            <div className="card" style={{ padding: '20px 24px' }}>
+              <SectionHeader
+                icon={PawPrint}
+                title="Pets"
+                subtitle={`${data.pets.length} pets · ~${formatCoins(data.breakdown?.pets ?? 0)} total`}
+                open={petsOpen}
+                onToggle={() => setPetsOpen(o => !o)}
+                accentColor="#bc8cff"
+              />
+
+              {petsOpen && (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+                  gap: 12,
+                }}>
+                  {data.pets.slice(0, 24).map((pet, i) => (
+                    <div key={i} style={{
+                      background: 'var(--bg-2)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      padding: '14px 16px',
+                      borderTop: '2px solid #bc8cff',
+                    }}>
+                      {/* Pet name + level */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                        <span style={{ fontWeight: 700, fontSize: 13 }}>
+                          {pet.type?.replace(/_/g, ' ')}
+                        </span>
+                        {pet.level && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+                            background: 'var(--bg-4)', borderRadius: 6, padding: '2px 7px',
+                          }}>
+                            Lv.{pet.level}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Tags row */}
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 10 }}>
+                        <span className={`tag rarity-tag rarity-${pet.tier?.toLowerCase() ?? 'common'}`} style={{ fontSize: 10 }}>
+                          {pet.tier}
+                        </span>
+                        {pet.active  && <span className="tag tag-gold" style={{ fontSize: 9 }}>Active</span>}
+                        {pet.skin    && <span className="tag" style={{ fontSize: 9, background: 'rgba(57,208,216,0.15)', color: '#39d0d8' }}>Skin</span>}
+                        {pet.candy > 0 && <span className="tag" style={{ fontSize: 9, background: 'rgba(255,165,0,0.12)', color: '#ff9f43' }}>{pet.candy}🍬</span>}
+                      </div>
+
+                      {pet.held_item && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          + {pet.held_item.replace(/_/g, ' ')}
+                        </div>
+                      )}
+
+                      {/* Value */}
+                      <div style={{
+                        fontSize: 14, fontWeight: 800, color: '#bc8cff',
+                        borderTop: '1px solid var(--border)', paddingTop: 10,
+                      }}>
+                        ~{formatCoins(pet.value)}
+                        {pet.value === 0 && (
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11, marginLeft: 5 }}>no data</span>
+                        )}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span className={`tag rarity-tag rarity-${pet.tier?.toLowerCase() ?? 'common'}`} style={{ fontSize: 10 }}>{pet.tier}</span>
-                      {pet.held_item && <span style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>+ {pet.held_item.replace(/_/g, ' ')}</span>}
-                    </div>
-                    <div style={{ color: 'var(--gold)', fontWeight: 700, fontSize: 13, marginTop: 6 }}>
-                      ~{formatCoins(pet.value)}
-                      {pet.value === 0 && <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}> (no data)</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
         </div>
       )}
     </div>
