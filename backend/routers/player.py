@@ -15,6 +15,7 @@ from ..utils.hypixel import (
 )
 from ..utils.calculators import analyze_profile
 from ..utils.item_prices import item_prices as _live_prices
+from ..utils.ah_index import ah_index as _ah_index
 from ..limiter import limiter
 
 router = APIRouter(prefix="/player", tags=["player"])
@@ -366,9 +367,14 @@ PET_BASE_VALUES: dict[str, dict[str, float]] = {
 
 
 def _estimate_pet_value(pet: dict) -> float:
-    ptype = pet.get("type", "").upper().replace("_", " ")
-    tier  = pet.get("tier", "COMMON").upper()
-    return PET_BASE_VALUES.get(ptype, {}).get(tier, 50_000)
+    ptype    = str(pet.get("type") or "").upper()
+    tier     = str(pet.get("tier") or "COMMON").upper()
+    live_key = f"PET_{ptype}_{tier}"
+    live     = _live_prices.get(live_key, 0)
+    if live > 0:
+        return live
+    # Fallback to hardcoded table (handles cold-start before AH is indexed)
+    return PET_BASE_VALUES.get(ptype.replace("_", " "), {}).get(tier, 50_000)
 
 
 # ── Item upgrade valuation ─────────────────────────────────────────────────────
@@ -394,6 +400,29 @@ def _upgrade_value(it: dict) -> float:
         enc_id = f"ENCHANTMENT_{enc_name.upper()}_{enc_level}"
         v += _live_prices.get(enc_id, 0)
     return v
+
+
+def _ah_name_lookup(display_name: str) -> float:
+    """
+    Last-resort: search the live AH index by display name and return the
+    lowest BIN price found, or 0 if nothing matches.
+    Only called when the item_id lookup returns 0.
+    """
+    if not _ah_index.ready or not display_name:
+        return 0.0
+    q = display_name.lower().strip()
+    best = 0.0
+    for a in _ah_index._auctions:
+        if not a.get('bin'):
+            continue
+        if q not in a.get('item_name', '').lower():
+            continue
+        price = float(a.get('starting_bid', 0) or 0)
+        if price <= 0:
+            continue
+        if best == 0.0 or price < best:
+            best = price
+    return best
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -612,11 +641,16 @@ async def networth(
         valued, all_ann = [], []
         total = 0.0
         for it in items:
-            fallback  = _KNOWN_VALUES.get(it["id"], 0)
-            base_val  = _live_prices.get(it["id"], fallback) * it["count"]
-            upg_val   = _upgrade_value(it)
-            val       = base_val + upg_val
-            ann       = {**it, "value": round(val), "base_value": round(base_val), "upgrades_value": round(upg_val)}
+            fallback = _KNOWN_VALUES.get(it["id"], 0)
+            base_val = _live_prices.get(it["id"], fallback) * it["count"]
+
+            # Last-resort: if still 0, search ah_index by display name
+            if base_val == 0 and it.get("name"):
+                base_val = _ah_name_lookup(it["name"]) * it["count"]
+
+            upg_val = _upgrade_value(it)
+            val     = base_val + upg_val
+            ann     = {**it, "value": round(val), "base_value": round(base_val), "upgrades_value": round(upg_val)}
             all_ann.append(ann)
             if val > 0:
                 total += val
@@ -650,10 +684,14 @@ async def networth(
     pets_value = sum(_estimate_pet_value(p) for p in pets_raw)
     pets_list  = [
         {
-            "type":   p.get("type"),
-            "tier":   p.get("tier"),
-            "active": p.get("active", False),
-            "value":  _estimate_pet_value(p),
+            "type":      p.get("type"),
+            "tier":      p.get("tier"),
+            "level":     p.get("level") or int(p.get("exp", 0) > 0),
+            "active":    p.get("active", False),
+            "held_item": p.get("heldItem"),
+            "skin":      p.get("skin"),
+            "candy":     p.get("candyUsed", 0),
+            "value":     _estimate_pet_value(p),
         }
         for p in sorted(pets_raw, key=_estimate_pet_value, reverse=True)[:20]
     ]

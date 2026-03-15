@@ -409,23 +409,32 @@ export default function NetWorth() {
           {data.pets?.length > 0 && (
             <div className="card">
               <div className="card__title">
-                🐾 Top Pets by Value
+                🐾 Pets by Value
                 <span style={{ marginLeft: 'auto', color: 'var(--purple)', fontWeight: 700, fontSize: 14, textTransform: 'none', letterSpacing: 0 }}>
                   ~{formatCoins(data.breakdown?.pets ?? 0)}
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 }}>
-                {data.pets.slice(0, 12).map((pet, i) => (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(195px, 1fr))', gap: 8 }}>
+                {data.pets.slice(0, 20).map((pet, i) => (
                   <div key={i} style={{ background: 'var(--bg-3)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <span className="text-bold" style={{ fontSize: 13 }}>{pet.type?.replace(/_/g, ' ')}</span>
-                      {pet.active && <span className="tag tag-gold" style={{ fontSize: 9 }}>Active</span>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <span className="text-bold" style={{ fontSize: 13 }}>
+                        {pet.type?.replace(/_/g, ' ')}
+                        {pet.level ? <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11, marginLeft: 5 }}>Lv.{pet.level}</span> : null}
+                      </span>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {pet.active && <span className="tag tag-gold" style={{ fontSize: 9 }}>Active</span>}
+                        {pet.skin   && <span className="tag" style={{ fontSize: 9, background: 'rgba(57,208,216,0.15)', color: '#39d0d8' }}>Skin</span>}
+                        {pet.candy > 0 && <span className="tag" style={{ fontSize: 9, background: 'rgba(255,165,0,0.15)', color: '#ff9f43' }}>{pet.candy}🍬</span>}
+                      </div>
                     </div>
-                    <span className={`tag rarity-tag rarity-${pet.tier?.toLowerCase() ?? 'common'}`} style={{ fontSize: 10 }}>
-                      {pet.tier}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className={`tag rarity-tag rarity-${pet.tier?.toLowerCase() ?? 'common'}`} style={{ fontSize: 10 }}>{pet.tier}</span>
+                      {pet.held_item && <span style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>+ {pet.held_item.replace(/_/g, ' ')}</span>}
+                    </div>
                     <div style={{ color: 'var(--gold)', fontWeight: 700, fontSize: 13, marginTop: 6 }}>
                       ~{formatCoins(pet.value)}
+                      {pet.value === 0 && <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}> (no data)</span>}
                     </div>
                   </div>
                 ))}
