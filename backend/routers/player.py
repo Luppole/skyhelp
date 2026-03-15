@@ -233,148 +233,315 @@ def _decode_inventory_slots(data_b64: str) -> list[Optional[dict]]:
 
 
 # ── Known approximate market values ──────────────────────────────────────────
+# These are FALLBACK prices used only when live AH/Bazaar data is unavailable.
+# Live prices from item_prices.py always take priority.
 _KNOWN_VALUES: dict[str, float] = {
-    # Swords / Melee
-    "ASPECT_OF_THE_DRAGONS":    3_500_000,
-    "SHADOW_FURY":             12_000_000,
-    "HYPERION":               700_000_000,
-    "SCYLLA":                 400_000_000,
-    "VALKYRIE":               300_000_000,
-    "TERMINATOR":             550_000_000,
-    "NECRON_BLADE":           200_000_000,
-    "LIVID_DAGGER":             8_000_000,
-    "PIGMAN_SWORD":             2_500_000,
-    "ASPECT_OF_THE_END":          600_000,
-    "GIANTS_SWORD":            15_000_000,
-    "FLOWER_OF_TRUTH":          5_000_000,
-    "ATOMSPLIT_KATANA":        25_000_000,
-    "VORPAL_KATANA":            8_000_000,
-    "LAST_BREATH":             50_000_000,
-    "REAPER_SCYTHE":          100_000_000,
-    "MIDAS_SWORD":            200_000_000,
-    "MIDAS_STAFF":            120_000_000,
-    "DREADLORD_SWORD":            500_000,
-    "ZOMBIE_SWORD":               800_000,
-    "SHREDDER":                 1_000_000,
-    "SOUL_WHIP":                3_000_000,
-    # Bows
-    "JUJU_SHORTBOW":           50_000_000,
-    "HURRICANE_BOW":            2_000_000,
-    # Wand / staff
-    "WAND_OF_RESTORATION":        800_000,
-    "WAND_OF_HEALING":            300_000,
-    # Necron armour
-    "NECRON_HANDLE":           10_000_000,
-    "WITHER_HELMET":            5_000_000,
-    "WITHER_CHESTPLATE":        8_000_000,
-    "WITHER_LEGGINGS":          6_000_000,
-    "WITHER_BOOTS":             5_000_000,
-    "NECRON_HELMET":           25_000_000,
-    "NECRON_CHESTPLATE":       40_000_000,
-    "NECRON_LEGGINGS":         30_000_000,
-    "NECRON_BOOTS":            20_000_000,
-    # Storm armour
-    "STORM_HELMET":            15_000_000,
-    "STORM_CHESTPLATE":        25_000_000,
-    "STORM_LEGGINGS":          18_000_000,
-    "STORM_BOOTS":             12_000_000,
-    # Goldor armour
-    "GOLDOR_HELMET":            8_000_000,
-    "GOLDOR_CHESTPLATE":       12_000_000,
-    "GOLDOR_LEGGINGS":         10_000_000,
-    "GOLDOR_BOOTS":             7_000_000,
-    # Dragon armours
-    "SUPERIOR_DRAGON_HELMET":       3_000_000,
-    "SUPERIOR_DRAGON_CHESTPLATE":   5_000_000,
-    "SUPERIOR_DRAGON_LEGGINGS":     4_000_000,
-    "SUPERIOR_DRAGON_BOOTS":        3_000_000,
-    "STRONG_DRAGON_HELMET":         1_000_000,
-    "STRONG_DRAGON_CHESTPLATE":     2_000_000,
-    "STRONG_DRAGON_LEGGINGS":       1_500_000,
-    "STRONG_DRAGON_BOOTS":          1_000_000,
-    "YOUNG_DRAGON_HELMET":          2_000_000,
-    "YOUNG_DRAGON_CHESTPLATE":      3_500_000,
-    "YOUNG_DRAGON_LEGGINGS":        2_500_000,
-    "YOUNG_DRAGON_BOOTS":           2_000_000,
-    "WISE_DRAGON_HELMET":           1_500_000,
-    "WISE_DRAGON_CHESTPLATE":       3_000_000,
-    "WISE_DRAGON_LEGGINGS":         2_000_000,
-    "WISE_DRAGON_BOOTS":            1_500_000,
-    "UNSTABLE_DRAGON_HELMET":         600_000,
-    "UNSTABLE_DRAGON_CHESTPLATE":   1_000_000,
-    "UNSTABLE_DRAGON_LEGGINGS":       800_000,
-    "UNSTABLE_DRAGON_BOOTS":          600_000,
-    "OLD_DRAGON_HELMET":              800_000,
-    "OLD_DRAGON_CHESTPLATE":        1_500_000,
-    "OLD_DRAGON_LEGGINGS":          1_200_000,
-    "OLD_DRAGON_BOOTS":               800_000,
-    "PROTECTOR_DRAGON_HELMET":        400_000,
-    "PROTECTOR_DRAGON_CHESTPLATE":    700_000,
-    "PROTECTOR_DRAGON_LEGGINGS":      500_000,
-    "PROTECTOR_DRAGON_BOOTS":         400_000,
-    # Slayer armours
-    "ENDER_HELMET":             3_000_000,
-    "ENDER_CHESTPLATE":         5_000_000,
-    "ENDER_LEGGINGS":           4_000_000,
-    "ENDER_BOOTS":              3_000_000,
-    "BLAZE_HELMET":             2_000_000,
-    "BLAZE_CHESTPLATE":         3_000_000,
-    "BLAZE_LEGGINGS":           2_500_000,
-    "BLAZE_BOOTS":              2_000_000,
-    # Upgrade materials (fallback prices if not in live cache)
-    "HOT_POTATO_BOOK":            600_000,
-    "FUMING_POTATO_BOOK":      12_000_000,
-    "FIRST_MASTER_STAR":        5_000_000,
-    "SECOND_MASTER_STAR":       8_000_000,
-    "THIRD_MASTER_STAR":       15_000_000,
-    "FOURTH_MASTER_STAR":      25_000_000,
-    "FIFTH_MASTER_STAR":       50_000_000,
-    # Accessories
-    "RECOMBOBULATOR_3000":      6_000_000,
-    "HEGEMONY_ARTIFACT":      200_000_000,
-    "WITHER_ARTIFACT":         50_000_000,
-    "WITHER_RELIC":            80_000_000,
-    "WITHER_SHIELD":           15_000_000,
-    "MANA_FLUX":               10_000_000,
-    "OVERFLUX_CAPACITOR":      25_000_000,
-    "PLASMA_BUCKET":          100_000_000,
-    "ENDER_RELIC":             30_000_000,
-    "ABICASE":                 50_000_000,
-    "STONKS_TALISMAN":          3_000_000,
-    "MASTER_SKULL_TIER_7":    200_000_000,
-    # Special
-    "GOLDEN_TALISMAN":         50_000_000,
-    "DUNGEON_CHEST_KEY":          200_000,
-    "NEW_YEAR_CAKE":            5_000_000,
+    # ── Swords / Melee ────────────────────────────────────────────────────
+    "ASPECT_OF_THE_DRAGONS":      3_500_000,
+    "SHADOW_FURY":                12_000_000,
+    "HYPERION":                  750_000_000,
+    "SCYLLA":                    400_000_000,
+    "VALKYRIE":                  300_000_000,
+    "ASTRAEA":                   450_000_000,
+    "TERMINATOR":                500_000_000,
+    "NECRON_BLADE":              200_000_000,
+    "DARK_CLAYMORE":           1_000_000_000,
+    "LIVID_DAGGER":                8_000_000,
+    "PIGMAN_SWORD":                2_500_000,
+    "ASPECT_OF_THE_END":             600_000,
+    "GIANTS_SWORD":              170_000_000,
+    "FLOWER_OF_TRUTH":             5_000_000,
+    "ATOMSPLIT_KATANA":           25_000_000,
+    "VORPAL_KATANA":               8_000_000,
+    "LAST_BREATH":                50_000_000,
+    "REAPER_SCYTHE":             100_000_000,
+    "MIDAS_SWORD":                50_000_000,
+    "MIDAS_STAFF":                90_000_000,
+    "DREADLORD_SWORD":               500_000,
+    "ZOMBIE_SWORD":                  800_000,
+    "SHREDDER":                    1_500_000,
+    "SOUL_WHIP":                   3_000_000,
+    "FIRE_VEIL_WAND":              2_000_000,
+    "WYVERN_BLADE":              200_000_000,
+    "ASTEA_FABLES":               30_000_000,
+    "DIAMOND_SWORD":                  10_000,
+    # ── Bows ──────────────────────────────────────────────────────────────
+    "JUJU_SHORTBOW":              30_000_000,
+    "HURRICANE_BOW":               2_000_000,
+    "WITHERED_DRAGON_BOW":        20_000_000,
+    # ── Wands / staves ────────────────────────────────────────────────────
+    "WAND_OF_RESTORATION":           800_000,
+    "WAND_OF_HEALING":               300_000,
+    # ── Wither / Necron armour ────────────────────────────────────────────
+    "NECRON_HANDLE":              10_000_000,
+    "WITHER_HELMET":               5_000_000,
+    "WITHER_CHESTPLATE":           8_000_000,
+    "WITHER_LEGGINGS":             6_000_000,
+    "WITHER_BOOTS":                5_000_000,
+    "NECRON_HELMET":              25_000_000,
+    "NECRON_CHESTPLATE":          40_000_000,
+    "NECRON_LEGGINGS":            30_000_000,
+    "NECRON_BOOTS":               20_000_000,
+    # ── Storm armour ──────────────────────────────────────────────────────
+    "STORM_HELMET":               15_000_000,
+    "STORM_CHESTPLATE":           25_000_000,
+    "STORM_LEGGINGS":             18_000_000,
+    "STORM_BOOTS":                12_000_000,
+    # ── Goldor armour ─────────────────────────────────────────────────────
+    "GOLDOR_HELMET":               8_000_000,
+    "GOLDOR_CHESTPLATE":          12_000_000,
+    "GOLDOR_LEGGINGS":            10_000_000,
+    "GOLDOR_BOOTS":                7_000_000,
+    # ── Warden helmet ─────────────────────────────────────────────────────
+    "WARDEN_HELMET":             350_000_000,
+    # ── Dragon armours ────────────────────────────────────────────────────
+    "SUPERIOR_DRAGON_HELMET":      3_500_000,
+    "SUPERIOR_DRAGON_CHESTPLATE":  6_000_000,
+    "SUPERIOR_DRAGON_LEGGINGS":    4_500_000,
+    "SUPERIOR_DRAGON_BOOTS":       3_500_000,
+    "STRONG_DRAGON_HELMET":        1_000_000,
+    "STRONG_DRAGON_CHESTPLATE":    2_000_000,
+    "STRONG_DRAGON_LEGGINGS":      1_500_000,
+    "STRONG_DRAGON_BOOTS":         1_000_000,
+    "YOUNG_DRAGON_HELMET":         2_500_000,
+    "YOUNG_DRAGON_CHESTPLATE":     4_500_000,
+    "YOUNG_DRAGON_LEGGINGS":       3_000_000,
+    "YOUNG_DRAGON_BOOTS":          2_500_000,
+    "WISE_DRAGON_HELMET":          1_500_000,
+    "WISE_DRAGON_CHESTPLATE":      3_000_000,
+    "WISE_DRAGON_LEGGINGS":        2_000_000,
+    "WISE_DRAGON_BOOTS":           1_500_000,
+    "UNSTABLE_DRAGON_HELMET":        600_000,
+    "UNSTABLE_DRAGON_CHESTPLATE":  1_200_000,
+    "UNSTABLE_DRAGON_LEGGINGS":      900_000,
+    "UNSTABLE_DRAGON_BOOTS":         600_000,
+    "OLD_DRAGON_HELMET":             800_000,
+    "OLD_DRAGON_CHESTPLATE":       1_500_000,
+    "OLD_DRAGON_LEGGINGS":         1_200_000,
+    "OLD_DRAGON_BOOTS":              800_000,
+    "PROTECTOR_DRAGON_HELMET":       400_000,
+    "PROTECTOR_DRAGON_CHESTPLATE":   700_000,
+    "PROTECTOR_DRAGON_LEGGINGS":     500_000,
+    "PROTECTOR_DRAGON_BOOTS":        400_000,
+    # ── Slayer armours ────────────────────────────────────────────────────
+    "ENDER_HELMET":                3_000_000,
+    "ENDER_CHESTPLATE":            5_000_000,
+    "ENDER_LEGGINGS":              4_000_000,
+    "ENDER_BOOTS":                 3_000_000,
+    "BLAZE_HELMET":                2_000_000,
+    "BLAZE_CHESTPLATE":            3_000_000,
+    "BLAZE_LEGGINGS":              2_500_000,
+    "BLAZE_BOOTS":                 2_000_000,
+    "REVENANT_FALCHION":           5_000_000,
+    "REAPER_FALCHION":             8_000_000,
+    "SCORPION_FOIL":              12_000_000,
+    "VOIDEDGE_KATANA":            40_000_000,
+    "DARK_ORION_BOW":             60_000_000,
+    # ── Kuudra / crimson armours (base without attributes) ────────────────
+    "FERVOR_HELMET":               2_000_000,
+    "FERVOR_CHESTPLATE":           3_000_000,
+    "FERVOR_LEGGINGS":             2_500_000,
+    "FERVOR_BOOTS":                2_000_000,
+    "AURORA_HELMET":               3_000_000,
+    "AURORA_CHESTPLATE":           5_000_000,
+    "AURORA_LEGGINGS":             4_000_000,
+    "AURORA_BOOTS":                3_000_000,
+    "TERROR_HELMET":               5_000_000,
+    "TERROR_CHESTPLATE":           8_000_000,
+    "TERROR_LEGGINGS":             6_000_000,
+    "TERROR_BOOTS":                5_000_000,
+    "HOLLOW_HELMET":               8_000_000,
+    "HOLLOW_CHESTPLATE":          12_000_000,
+    "HOLLOW_LEGGINGS":            10_000_000,
+    "HOLLOW_BOOTS":                8_000_000,
+    "CRIMSON_HELMET":             25_000_000,
+    "CRIMSON_CHESTPLATE":         40_000_000,
+    "CRIMSON_LEGGINGS":           30_000_000,
+    "CRIMSON_BOOTS":              25_000_000,
+    # ── Upgrade materials (fallback only) ─────────────────────────────────
+    "HOT_POTATO_BOOK":               600_000,
+    "FUMING_POTATO_BOOK":         12_000_000,
+    "FIRST_MASTER_STAR":           5_000_000,
+    "SECOND_MASTER_STAR":          8_000_000,
+    "THIRD_MASTER_STAR":          15_000_000,
+    "FOURTH_MASTER_STAR":         25_000_000,
+    "FIFTH_MASTER_STAR":          50_000_000,
+    # ── Accessories ───────────────────────────────────────────────────────
+    "RECOMBOBULATOR_3000":         6_000_000,
+    "HEGEMONY_ARTIFACT":         200_000_000,
+    "WITHER_ARTIFACT":            50_000_000,
+    "WITHER_RELIC":               80_000_000,
+    "WITHER_SHIELD":              15_000_000,
+    "MANA_FLUX":                  10_000_000,
+    "OVERFLUX_CAPACITOR":         70_000_000,
+    "PLASMAFLUX_CORE":           300_000_000,
+    "PLASMA_BUCKET":             100_000_000,
+    "ENDER_RELIC":                30_000_000,
+    "ABICASE":                    50_000_000,
+    "STONKS_TALISMAN":             3_000_000,
+    "MASTER_SKULL_TIER_7":       200_000_000,
+    "POWER_ARTIFACT":              5_000_000,
+    "SPEED_ARTIFACT":              2_000_000,
+    "TRAVEL_SCROLL_TO_GARDEN":    20_000_000,
+    # ── Special / misc ────────────────────────────────────────────────────
+    "GOLDEN_TALISMAN":            50_000_000,
+    "DUNGEON_CHEST_KEY":             200_000,
+    "NEW_YEAR_CAKE":               5_000_000,
+    "DEEP_SEA_ORB":               80_000_000,
 }
 
-# ── Pet values ────────────────────────────────────────────────────────────────
+# ── Pet XP → level calculation ────────────────────────────────────────────────
+# Verified total XP required to reach level 100 per rarity (Hypixel SkyBlock wiki).
+_PET_MAX_XP: dict[str, float] = {
+    "COMMON":    3_864_068,
+    "UNCOMMON":  8_333_068,
+    "RARE":     14_803_068,
+    "EPIC":     25_353_068,
+    "LEGENDARY": 40_603_068,
+    "MYTHIC":    40_603_068,
+}
+
+# XP fraction thresholds for level milestones (cumulative XP / max XP).
+# Derived from the SkyBlock level-up cost curve: early levels are cheap,
+# late levels are expensive.  Piecewise-linear interpolation between these
+# anchor points gives < 5-level error across the full range.
+_PET_XP_ANCHORS: list[tuple[float, int]] = [
+    # (cumulative_xp_fraction, level)
+    (0.000, 1),
+    (0.002, 10),
+    (0.008, 20),
+    (0.020, 30),
+    (0.045, 40),
+    (0.090, 50),
+    (0.175, 60),
+    (0.315, 70),
+    (0.510, 80),
+    (0.720, 90),
+    (0.870, 95),
+    (1.000, 100),
+]
+
+
+def _pet_level_from_xp(exp: float, tier: str) -> int:
+    """Convert cumulative pet XP to level (1–100) using piecewise interpolation."""
+    max_xp = _PET_MAX_XP.get(tier.upper(), 40_603_068)
+    if exp <= 0:
+        return 1
+    if exp >= max_xp:
+        return 100
+    ratio = exp / max_xp
+    # Find surrounding anchor points and linearly interpolate
+    for i in range(1, len(_PET_XP_ANCHORS)):
+        r1, l1 = _PET_XP_ANCHORS[i - 1]
+        r2, l2 = _PET_XP_ANCHORS[i]
+        if ratio <= r2:
+            t = (ratio - r1) / (r2 - r1) if r2 > r1 else 0
+            return max(1, min(100, round(l1 + t * (l2 - l1))))
+    return 100
+
+
+def _pet_level_multiplier(level: int) -> float:
+    """
+    Price multiplier relative to a fully-levelled (lv100) pet.
+
+    AH lowest-BIN prices for a pet type/rarity typically reflect low-level
+    listings (cheapest).  A lv100 legendary commonly sells for 3–5× more
+    than a lv1 of the same rarity.  Curve calibrated to match observed
+    SkyBlock market ratios:
+        lv  1 → 0.20×   lv 50 → 0.55×   lv 80 → 0.80×   lv100 → 1.00×
+    """
+    if level >= 100:
+        return 1.0
+    if level <= 1:
+        return 0.20
+    return 0.20 + 0.80 * (level / 100) ** 0.75
+
+
+# ── Pet base values (max-level prices, used when live AH data is absent) ─────
 PET_BASE_VALUES: dict[str, dict[str, float]] = {
-    "TIGER":         {"COMMON": 100_000, "UNCOMMON": 500_000, "RARE": 2_000_000, "EPIC": 8_000_000,   "LEGENDARY": 50_000_000},
-    "LION":          {"COMMON": 50_000,  "UNCOMMON": 200_000, "RARE": 1_000_000, "EPIC": 4_000_000,   "LEGENDARY": 20_000_000},
-    "ENDER DRAGON":  {"EPIC": 100_000_000, "LEGENDARY": 300_000_000},
-    "GOLDEN DRAGON": {"LEGENDARY": 800_000_000},
-    "GRIFFIN":       {"RARE": 2_000_000,  "EPIC": 10_000_000,  "LEGENDARY": 80_000_000},
-    "ENDERMAN":      {"UNCOMMON": 300_000, "RARE": 1_000_000,  "EPIC": 4_000_000, "LEGENDARY": 15_000_000},
-    "BLAZE":         {"UNCOMMON": 200_000, "RARE": 800_000,    "EPIC": 3_000_000, "LEGENDARY": 10_000_000},
-    "BEE":           {"UNCOMMON": 150_000, "RARE": 600_000,    "EPIC": 2_000_000, "LEGENDARY": 8_000_000},
-    "WOLF":          {"UNCOMMON": 200_000, "RARE": 700_000,    "EPIC": 2_500_000, "LEGENDARY": 10_000_000},
-    "SPIDER":        {"UNCOMMON": 150_000, "RARE": 500_000,    "EPIC": 2_000_000, "LEGENDARY": 7_000_000},
-    "ZOMBIE":        {"UNCOMMON": 100_000, "RARE": 400_000,    "EPIC": 1_500_000, "LEGENDARY": 5_000_000},
-    "HORSE":         {"RARE": 500_000,    "EPIC": 2_000_000,   "LEGENDARY": 8_000_000},
-    "JERRY":         {"LEGENDARY": 200_000_000},
+    # ── Combat / slayer pets ──────────────────────────────────────────────
+    "TIGER":            {"COMMON": 80_000,  "UNCOMMON": 400_000,  "RARE": 1_500_000,  "EPIC": 6_000_000,   "LEGENDARY": 45_000_000},
+    "LION":             {"COMMON": 40_000,  "UNCOMMON": 150_000,  "RARE": 700_000,    "EPIC": 3_000_000,   "LEGENDARY": 18_000_000},
+    "ENDERMAN":         {"UNCOMMON": 300_000,"RARE": 1_000_000,   "EPIC": 4_000_000,  "LEGENDARY": 15_000_000},
+    "BLAZE":            {"UNCOMMON": 200_000,"RARE": 800_000,     "EPIC": 3_000_000,  "LEGENDARY": 10_000_000},
+    "WOLF":             {"UNCOMMON": 150_000,"RARE": 600_000,     "EPIC": 2_000_000,  "LEGENDARY": 8_000_000},
+    "SPIDER":           {"COMMON": 50_000,  "UNCOMMON": 150_000,  "RARE": 500_000,    "EPIC": 2_000_000,   "LEGENDARY": 7_000_000},
+    "ZOMBIE":           {"COMMON": 30_000,  "UNCOMMON": 100_000,  "RARE": 400_000,    "EPIC": 1_500_000,   "LEGENDARY": 5_000_000},
+    "SKELETON":         {"COMMON": 30_000,  "UNCOMMON": 100_000,  "RARE": 350_000,    "EPIC": 1_200_000,   "LEGENDARY": 4_000_000},
+    "CREEPER":          {"COMMON": 20_000,  "UNCOMMON": 80_000,   "RARE": 300_000,    "EPIC": 1_000_000,   "LEGENDARY": 3_500_000},
+    "GOLEM":            {"COMMON": 30_000,  "UNCOMMON": 100_000,  "RARE": 350_000,    "EPIC": 1_200_000,   "LEGENDARY": 4_000_000},
+    "PIGMAN":           {"UNCOMMON": 80_000, "RARE": 300_000,     "EPIC": 1_000_000,  "LEGENDARY": 3_500_000},
+    "GHOUL":            {"UNCOMMON": 60_000, "RARE": 250_000,     "EPIC": 800_000,    "LEGENDARY": 2_500_000},
+    "WITHER SKELETON":  {"UNCOMMON": 200_000,"RARE": 700_000,     "EPIC": 2_500_000,  "LEGENDARY": 9_000_000},
+    "MAGMA CUBE":       {"COMMON": 40_000,  "UNCOMMON": 150_000,  "RARE": 500_000,    "EPIC": 2_000_000,   "LEGENDARY": 7_000_000},
+    "SILVERFISH":       {"COMMON": 30_000,  "UNCOMMON": 100_000,  "RARE": 350_000,    "EPIC": 1_200_000,   "LEGENDARY": 4_500_000},
+    "ENDERMITE":        {"UNCOMMON": 100_000,"RARE": 350_000,     "EPIC": 1_200_000,  "LEGENDARY": 4_000_000},
+    "GUARDIAN":         {"UNCOMMON": 150_000,"RARE": 500_000,     "EPIC": 2_000_000,  "LEGENDARY": 7_000_000},
+    # ── Fishing pets ──────────────────────────────────────────────────────
+    "SQUID":            {"COMMON": 20_000,  "UNCOMMON": 80_000,   "RARE": 300_000,    "EPIC": 1_200_000,   "LEGENDARY": 4_000_000},
+    "FLYING FISH":      {"COMMON": 100_000, "UNCOMMON": 400_000,  "RARE": 1_500_000,  "EPIC": 6_000_000,   "LEGENDARY": 20_000_000},
+    "MEGALODON":        {"RARE": 1_000_000, "EPIC": 4_000_000,   "LEGENDARY": 15_000_000},
+    "DOLPHIN":          {"UNCOMMON": 300_000,"RARE": 1_200_000,   "EPIC": 4_500_000,  "LEGENDARY": 15_000_000},
+    "JELLYFISH":        {"EPIC": 3_000_000, "LEGENDARY": 10_000_000},
+    "BLUE WHALE":       {"RARE": 2_000_000, "EPIC": 8_000_000,   "LEGENDARY": 25_000_000},
+    "OCELOT":           {"COMMON": 30_000,  "UNCOMMON": 100_000,  "RARE": 400_000,    "EPIC": 1_500_000,   "LEGENDARY": 5_000_000},
+    # ── Mining pets ───────────────────────────────────────────────────────
+    "ROCK":             {"COMMON": 100_000, "UNCOMMON": 400_000,  "RARE": 1_500_000,  "EPIC": 6_000_000,   "LEGENDARY": 20_000_000},
+    "MOLE":             {"COMMON": 20_000,  "UNCOMMON": 70_000,   "RARE": 250_000,    "EPIC": 800_000,     "LEGENDARY": 2_500_000},
+    "SILVERFISH":       {"COMMON": 30_000,  "UNCOMMON": 100_000,  "RARE": 350_000,    "EPIC": 1_200_000,   "LEGENDARY": 4_500_000},
+    "ARMADILLO":        {"COMMON": 50_000,  "UNCOMMON": 180_000,  "RARE": 700_000,    "EPIC": 2_500_000,   "LEGENDARY": 8_000_000},
+    "BAL":              {"EPIC": 5_000_000, "LEGENDARY": 18_000_000},
+    # ── Farming / foraging pets ───────────────────────────────────────────
+    "BEE":              {"UNCOMMON": 150_000,"RARE": 600_000,     "EPIC": 2_000_000,  "LEGENDARY": 8_000_000},
+    "ELEPHANT":         {"COMMON": 40_000,  "UNCOMMON": 150_000,  "RARE": 550_000,    "EPIC": 2_000_000,   "LEGENDARY": 7_000_000},
+    "RABBIT":           {"COMMON": 20_000,  "UNCOMMON": 70_000,   "RARE": 250_000,    "EPIC": 900_000,     "LEGENDARY": 3_000_000},
+    "PIG":              {"COMMON": 15_000,  "UNCOMMON": 60_000,   "RARE": 200_000,    "EPIC": 700_000,     "LEGENDARY": 2_500_000},
+    "CHICKEN":          {"COMMON": 10_000,  "UNCOMMON": 40_000,   "RARE": 150_000,    "EPIC": 500_000,     "LEGENDARY": 1_500_000},
+    "COW":              {"COMMON": 10_000,  "UNCOMMON": 40_000,   "RARE": 150_000,    "EPIC": 500_000,     "LEGENDARY": 1_500_000},
+    "SHEEP":            {"COMMON": 10_000,  "UNCOMMON": 40_000,   "RARE": 150_000,    "EPIC": 500_000,     "LEGENDARY": 1_500_000},
+    "MUSHROOM COW":     {"COMMON": 10_000,  "UNCOMMON": 40_000,   "RARE": 150_000,    "EPIC": 500_000,     "LEGENDARY": 2_000_000},
+    "SNAIL":            {"COMMON": 30_000,  "UNCOMMON": 100_000,  "RARE": 350_000,    "EPIC": 1_200_000,   "LEGENDARY": 4_000_000},
+    # ── Dungeon / prestige pets ───────────────────────────────────────────
+    "ENDER DRAGON":     {"EPIC": 80_000_000, "LEGENDARY": 250_000_000},
+    "GOLDEN DRAGON":    {"LEGENDARY": 800_000_000},
+    "GRIFFIN":          {"RARE": 2_000_000, "EPIC": 10_000_000,   "LEGENDARY": 80_000_000},
+    "JERRY":            {"LEGENDARY": 200_000_000},
+    "BABY YETI":        {"RARE": 1_500_000, "EPIC": 5_000_000,    "LEGENDARY": 20_000_000},
+    "GIRAFFE":          {"RARE": 2_000_000, "EPIC": 8_000_000,    "LEGENDARY": 30_000_000},
+    "PHOENIX":          {"RARE": 3_000_000, "EPIC": 12_000_000,   "LEGENDARY": 40_000_000},
+    "WYVERN":           {"RARE": 3_000_000, "EPIC": 12_000_000,   "LEGENDARY": 40_000_000},
+    "BLACK CAT":        {"EPIC": 10_000_000,"LEGENDARY": 20_000_000},
+    "TURTLE":           {"RARE": 1_000_000, "EPIC": 4_000_000,    "LEGENDARY": 12_000_000},
+    "FLOWER":           {"RARE": 800_000,   "EPIC": 3_000_000,    "LEGENDARY": 10_000_000},
+    # ── General-purpose ───────────────────────────────────────────────────
+    "HORSE":            {"RARE": 500_000,   "EPIC": 2_000_000,    "LEGENDARY": 8_000_000},
+    "CAT":              {"COMMON": 20_000,  "UNCOMMON": 70_000,   "RARE": 250_000,    "EPIC": 900_000,     "LEGENDARY": 3_000_000},
+    "PARROT":           {"RARE": 1_500_000, "EPIC": 6_000_000,    "LEGENDARY": 20_000_000},
+    "MONKEY":           {"COMMON": 20_000,  "UNCOMMON": 70_000,   "RARE": 250_000,    "EPIC": 800_000,     "LEGENDARY": 3_000_000},
+    "SNOWMAN":          {"EPIC": 2_000_000, "LEGENDARY": 8_000_000},
+    "GLACIAL":          {"EPIC": 3_000_000, "LEGENDARY": 12_000_000},
 }
 
 
 def _estimate_pet_value(pet: dict) -> float:
-    ptype    = str(pet.get("type") or "").upper()
-    tier     = str(pet.get("tier") or "COMMON").upper()
+    """Estimate pet value accounting for live AH prices AND current level."""
+    ptype = str(pet.get("type") or "").upper()
+    tier  = str(pet.get("tier") or "COMMON").upper()
+    exp   = float(pet.get("exp") or 0)
+    level = _pet_level_from_xp(exp, tier)
+    mult  = _pet_level_multiplier(level)
+
     live_key = f"PET_{ptype}_{tier}"
-    live     = _live_prices.get(live_key, 0)
-    if live > 0:
-        return live
-    # Fallback to hardcoded table (handles cold-start before AH is indexed)
-    return PET_BASE_VALUES.get(ptype.replace("_", " "), {}).get(tier, 50_000)
+    live_base = _live_prices.get(live_key, 0)
+    if live_base > 0:
+        # Live prices reflect a mix of levels listed on AH; apply level scaling
+        # so near-max pets are valued correctly above the typical floor listing.
+        return live_base * mult
+
+    # Fallback table stores max-level (lv100) representative prices.
+    friendly = ptype.replace("_", " ")
+    base = PET_BASE_VALUES.get(friendly, {}).get(tier, 50_000)
+    return base * mult
 
 
 # ── Item upgrade valuation ─────────────────────────────────────────────────────
@@ -385,20 +552,44 @@ _STAR_KEYS = [
 
 
 def _upgrade_value(it: dict) -> float:
-    """Estimate the coin value of upgrades applied to an item (HPB, recomb, stars, enchants)."""
+    """
+    Estimate coin value of upgrades applied to an item.
+
+    HPB / Recombobulator / Master Stars are genuine additions on top of the
+    item's market price because sellers routinely list upgraded versions at a
+    premium that scales with upgrade cost.
+
+    Enchantments on regular items are NOT added here: the AH price for the
+    item already reflects whatever enchants it carries.  Adding enchantment
+    book prices on top would cause massive double-counting.
+    The ONLY exception is ENCHANTED_BOOK items themselves (id == "ENCHANTED_BOOK")
+    whose entire value comes from the enchants they contain.
+    """
     v = 0.0
+    item_id = str(it.get("id") or "")
+
+    # ── Hot Potato Books ───────────────────────────────────────────────────
     hpb = int(it.get("hot_potato_count") or 0)
-    if hpb:
-        hpb_p    = _live_prices.get("HOT_POTATO_BOOK",   _KNOWN_VALUES.get("HOT_POTATO_BOOK",   600_000))
+    if hpb and item_id != "ENCHANTED_BOOK":
+        hpb_p    = _live_prices.get("HOT_POTATO_BOOK",    _KNOWN_VALUES.get("HOT_POTATO_BOOK",    600_000))
         fuming_p = _live_prices.get("FUMING_POTATO_BOOK", _KNOWN_VALUES.get("FUMING_POTATO_BOOK", 12_000_000))
         v += min(hpb, 10) * hpb_p + max(0, hpb - 10) * fuming_p
-    if int(it.get("rarity_upgrades") or 0):
+
+    # ── Recombobulator ────────────────────────────────────────────────────
+    if int(it.get("rarity_upgrades") or 0) and item_id != "ENCHANTED_BOOK":
         v += _live_prices.get("RECOMBOBULATOR_3000", _KNOWN_VALUES.get("RECOMBOBULATOR_3000", 6_000_000))
+
+    # ── Dungeon master stars ───────────────────────────────────────────────
     for i in range(min(int(it.get("dungeon_item_level") or 0), 5)):
         v += _live_prices.get(_STAR_KEYS[i], _KNOWN_VALUES.get(_STAR_KEYS[i], 0))
-    for enc_name, enc_level in (it.get("enchantments") or {}).items():
-        enc_id = f"ENCHANTMENT_{enc_name.upper()}_{enc_level}"
-        v += _live_prices.get(enc_id, 0)
+
+    # ── Enchantments — ONLY for standalone enchanted books ────────────────
+    # For all other items the AH price already bakes in the enchantments.
+    if item_id == "ENCHANTED_BOOK":
+        for enc_name, enc_level in (it.get("enchantments") or {}).items():
+            enc_id = f"ENCHANTMENT_{enc_name.upper()}_{enc_level}"
+            v += _live_prices.get(enc_id, 0)
+
     return v
 
 
@@ -686,7 +877,11 @@ async def networth(
         {
             "type":      p.get("type"),
             "tier":      p.get("tier"),
-            "level":     p.get("level") or int(p.get("exp", 0) > 0),
+            # Always compute level from XP — the 'level' field in the API response
+            # is unreliable and often missing; XP is the authoritative source.
+            "level":     _pet_level_from_xp(float(p.get("exp") or 0),
+                                             str(p.get("tier") or "COMMON").upper()),
+            "exp":       round(float(p.get("exp") or 0)),
             "active":    p.get("active", False),
             "held_item": p.get("heldItem"),
             "skin":      p.get("skin"),

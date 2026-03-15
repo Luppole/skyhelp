@@ -125,17 +125,16 @@ def _parse_auction_item(item_bytes_b64: str) -> tuple[Optional[str], dict]:
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _register(price: float, key: str, target: dict) -> None:
-    """Store price in target dict only if it's lower than existing entry."""
-    if key not in target or price < target[key]:
-        target[key] = price
+def _register_bin(price: float, key: str, target: dict[str, list]) -> None:
+    """Append a BIN price to the raw list for that key (we'll percentile later)."""
+    target.setdefault(key, []).append(price)
 
 
 def _register_auction(auction: dict, skip_bazaar: set,
-                       out_bin: dict, out_ah_raw: dict) -> None:
+                       out_bin_raw: dict, out_ah_raw: dict) -> None:
     """
-    Extract pricing info from one auction dict and populate out_bin / out_ah_raw.
-    BIN auctions → out_bin (keep lowest).
+    Extract pricing info from one auction dict and populate out_bin_raw / out_ah_raw.
+    BIN auctions → out_bin_raw (list; we compute a low-percentile later).
     Non-BIN auctions with active bids → out_ah_raw (list for percentile calc).
     """
     is_bin = bool(auction.get('bin'))
@@ -163,12 +162,12 @@ def _register_auction(auction: dict, skip_bazaar: set,
             if enc_key in skip_bazaar:
                 continue
             if is_bin:
-                _register(price, enc_key, out_bin)
+                _register_bin(price, enc_key, out_bin_raw)
             else:
                 out_ah_raw.setdefault(enc_key, []).append(price)
     elif key and key not in skip_bazaar:
         if is_bin:
-            _register(price, key, out_bin)
+            _register_bin(price, key, out_bin_raw)
         else:
             out_ah_raw.setdefault(key, []).append(price)
 
@@ -235,8 +234,8 @@ class ItemPriceCache:
                         new_bazaar[item_id] = float(sell)
 
             skip = set(new_bazaar)  # don't override bazaar items with AH prices
-            new_bin:    dict[str, float]       = {}
-            new_ah_raw: dict[str, list[float]] = {}
+            new_bin_raw: dict[str, list[float]] = {}
+            new_ah_raw:  dict[str, list[float]] = {}
 
             # ── 2. Ended auctions (recent sales) ─────────────────────────
             if not isinstance(ended_resp, Exception):
@@ -256,12 +255,22 @@ class ItemPriceCache:
                     elif key and key not in skip:
                         new_ah_raw.setdefault(key, []).append(price)
 
-            # ── 3. Active AH (BIN = hard price; non-BIN bids = soft signal)
+            # ── 3. Active AH (BIN = collect for percentile; non-BIN bids = soft signal)
             if ah_index.ready:
                 for auction in ah_index._auctions:
-                    _register_auction(auction, skip, new_bin, new_ah_raw)
+                    _register_auction(auction, skip, new_bin_raw, new_ah_raw)
 
-            # ── 4. Compute AH 25th-percentile prices ─────────────────────
+            # ── 4. Compute BIN price: 10th percentile of active listings ─
+            # Using 10th-percentile (rather than the absolute lowest) removes
+            # price-manipulation listings and single outlier cheap BINs while
+            # still giving a conservative floor that reflects real market value.
+            new_bin: dict[str, float] = {}
+            for key, prices in new_bin_raw.items():
+                s = sorted(prices)
+                idx = max(0, min(len(s) - 1, len(s) // 10))  # 10th percentile
+                new_bin[key] = s[idx]
+
+            # ── 5. Compute AH 25th-percentile from ended / bid prices ─────
             new_ah: dict[str, float] = {}
             for key, prices in new_ah_raw.items():
                 s = sorted(prices)
