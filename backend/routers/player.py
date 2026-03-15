@@ -14,6 +14,7 @@ from ..utils.hypixel import (
     get_server_api_key,
 )
 from ..utils.calculators import analyze_profile
+from ..utils.item_prices import item_prices as _live_prices
 from ..limiter import limiter
 
 router = APIRouter(prefix="/player", tags=["player"])
@@ -503,7 +504,8 @@ async def networth(
         valued, all_ann = [], []
         total = 0.0
         for it in items:
-            val = _KNOWN_VALUES.get(it["id"], 0) * it["count"]
+            fallback = _KNOWN_VALUES.get(it["id"], 0)
+            val = _live_prices.get(it["id"], fallback) * it["count"]
             ann = {**it, "value": val}
             all_ann.append(ann)
             if val > 0:

@@ -16,6 +16,7 @@ from .limiter import limiter
 from .utils.hypixel import load_api_key
 from .utils.ah_index import ah_index
 from .utils.price_history import price_history
+from .utils.item_prices import item_prices
 from .utils.cache import stats as cache_stats, init_cache, close_cache
 from .routers import bazaar, auctions, player, mayor, prices, push, garden
 
@@ -30,13 +31,16 @@ async def lifespan(app: FastAPI):
     if os.environ.get("VERCEL"):
         asyncio.create_task(ah_index.start())
         asyncio.create_task(price_history.start())
+        asyncio.create_task(item_prices.start())
     else:
         await ah_index.start()
         await price_history.start()
+        await item_prices.start()
     asyncio.create_task(push.run_alert_checker())
     yield
     await price_history.stop()
     await ah_index.stop()
+    await item_prices.stop()
     await close_cache()
 
 
