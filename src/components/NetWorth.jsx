@@ -367,7 +367,7 @@ export default function NetWorth() {
                 className={`btn-secondary btn-sm${saveMsg === 'saved' ? ' btn-success' : ''}`}
                 onClick={handleSaveSnapshot}
                 disabled={saveMsg === 'saving' || !user}
-                title={!user ? 'Sign in to save snapshots' : 'Save a snapshot of this player's data'}
+                title={!user ? 'Sign in to save snapshots' : "Save a snapshot of this player's data"}
               >
                 {saveMsg === 'saving' ? <><RefreshCw size={12} className="spin" /> Saving…</>
                   : saveMsg === 'saved' ? <>✓ Saved</>
