@@ -18,6 +18,7 @@ from .utils.ah_index import ah_index
 from .utils.price_history import price_history
 from .utils.item_prices import item_prices
 from .utils.cache import stats as cache_stats, init_cache, close_cache
+from .utils.prices_v2 import prices_v2
 from .routers import bazaar, auctions, player, mayor, prices, push, garden
 
 START_TIME = time.time()
@@ -32,15 +33,18 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(ah_index.start())
         asyncio.create_task(price_history.start())
         asyncio.create_task(item_prices.start())
+        asyncio.create_task(prices_v2.start())
     else:
         await ah_index.start()
         await price_history.start()
         await item_prices.start()
+        await prices_v2.start()
     asyncio.create_task(push.run_alert_checker())
     yield
     await price_history.stop()
     await ah_index.stop()
     await item_prices.stop()
+    await prices_v2.stop()
     await close_cache()
 
 

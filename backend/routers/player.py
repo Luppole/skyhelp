@@ -15,6 +15,7 @@ from ..utils.hypixel import (
 )
 from ..utils.calculators import analyze_profile
 from ..utils.item_prices import item_prices as _live_prices
+from ..utils.prices_v2 import prices_v2 as _p2
 from ..utils.ah_index import ah_index as _ah_index
 from ..limiter import limiter
 
@@ -524,21 +525,34 @@ PET_BASE_VALUES: dict[str, dict[str, float]] = {
 
 
 def _estimate_pet_value(pet: dict) -> float:
-    """Estimate pet value accounting for live AH prices AND current level."""
+    """
+    Estimate pet value using level-interpolated pricesV2.json prices.
+
+    Priority:
+      1. pricesV2 linear interpolation between lv1 and lv100 price points
+         (same method as SkyCrypt / skyhelper-networth)
+      2. Our own AH BIN cache (level-scaled by multiplier)
+      3. Hardcoded fallback table (level-scaled)
+    """
     ptype = str(pet.get("type") or "").upper()
     tier  = str(pet.get("tier") or "COMMON").upper()
     exp   = float(pet.get("exp") or 0)
     level = _pet_level_from_xp(exp, tier)
-    mult  = _pet_level_multiplier(level)
 
+    # ── 1. pricesV2 level-interpolated price ──────────────────────────────
+    if _p2.ready:
+        p2val = _p2.pet_price(ptype, tier, level)
+        if p2val > 0:
+            return p2val
+
+    # ── 2. Our AH BIN cache (level multiplier applied) ────────────────────
+    mult     = _pet_level_multiplier(level)
     live_key = f"PET_{ptype}_{tier}"
     live_base = _live_prices.get(live_key, 0)
     if live_base > 0:
-        # Live prices reflect a mix of levels listed on AH; apply level scaling
-        # so near-max pets are valued correctly above the typical floor listing.
         return live_base * mult
 
-    # Fallback table stores max-level (lv100) representative prices.
+    # ── 3. Hardcoded fallback (max-level prices) ──────────────────────────
     friendly = ptype.replace("_", " ")
     base = PET_BASE_VALUES.get(friendly, {}).get(tier, 50_000)
     return base * mult
@@ -551,44 +565,83 @@ _STAR_KEYS = [
 ]
 
 
+
+# Multipliers matching skyhelper-networth APPLICATION_WORTH constants
+_WORTH_HPB        = 1.00
+_WORTH_FUMING     = 0.60   # fuming books apply at 60 % of book price
+_WORTH_RECOMB     = 0.80
+_WORTH_STAR       = 1.00
+_WORTH_ENCHANT    = 0.85   # standard enchant application worth
+_WORTH_ENCHANT_OVERRIDES: dict[str, float] = {
+    # Ultimate enchants with low demand discount
+    "COUNTER_STRIKE":        0.20,
+    "BIG_BRAIN":             0.35,
+    "ULTIMATE_INFERNO":      0.35,
+    "OVERLOAD":              0.35,
+    "ULTIMATE_SOUL_EATER":   0.35,
+    "ULTIMATE_FATAL_TEMPO":  0.65,
+}
+# Stacking enchants — always priced at level 1 (their value doesn't scale with stacks)
+_STACKING_ENCHANTS = frozenset({
+    "EXPERTISE", "COMPACT", "CULTIVATING", "CHAMPION",
+    "HECATOMB", "TOXOPHILITE", "ABSORB",
+})
+
+
+def _enc_price(name: str, level: int) -> float:
+    """Return the market price of one enchantment, pricesV2 preferred."""
+    enc_key = f"ENCHANTMENT_{name.upper()}_{level}"
+    p = _p2.get(enc_key) if _p2.ready else 0.0
+    if p <= 0:
+        p = _live_prices.get(enc_key, 0.0)
+    return p
+
+
 def _upgrade_value(it: dict) -> float:
     """
-    Estimate coin value of upgrades applied to an item.
+    Estimate coin value added by upgrades on top of the item's base price.
 
-    HPB / Recombobulator / Master Stars are genuine additions on top of the
-    item's market price because sellers routinely list upgraded versions at a
-    premium that scales with upgrade cost.
-
-    Enchantments on regular items are NOT added here: the AH price for the
-    item already reflects whatever enchants it carries.  Adding enchantment
-    book prices on top would cause massive double-counting.
-    The ONLY exception is ENCHANTED_BOOK items themselves (id == "ENCHANTED_BOOK")
-    whose entire value comes from the enchants they contain.
+    Follows the skyhelper-networth application-worth approach:
+      - pricesV2 item prices represent an un-upgraded baseline
+      - each upgrade is valued at its market price × APPLICATION_WORTH multiplier
+      - enchantments on regular items ARE included at 0.85 × book price
+        (same as SkyCrypt — enchantments genuinely add value above the baseline)
     """
     v = 0.0
     item_id = str(it.get("id") or "")
 
-    # ── Hot Potato Books ───────────────────────────────────────────────────
+    # ── Hot Potato Books ──────────────────────────────────────────────────
     hpb = int(it.get("hot_potato_count") or 0)
     if hpb and item_id != "ENCHANTED_BOOK":
-        hpb_p    = _live_prices.get("HOT_POTATO_BOOK",    _KNOWN_VALUES.get("HOT_POTATO_BOOK",    600_000))
-        fuming_p = _live_prices.get("FUMING_POTATO_BOOK", _KNOWN_VALUES.get("FUMING_POTATO_BOOK", 12_000_000))
-        v += min(hpb, 10) * hpb_p + max(0, hpb - 10) * fuming_p
+        hpb_p    = (_p2.get("HOT_POTATO_BOOK")    or _live_prices.get("HOT_POTATO_BOOK",    _KNOWN_VALUES.get("HOT_POTATO_BOOK",    600_000)))
+        fuming_p = (_p2.get("FUMING_POTATO_BOOK") or _live_prices.get("FUMING_POTATO_BOOK", _KNOWN_VALUES.get("FUMING_POTATO_BOOK", 12_000_000)))
+        v += min(hpb, 10) * hpb_p * _WORTH_HPB
+        v += max(0, hpb - 10) * fuming_p * _WORTH_FUMING
 
     # ── Recombobulator ────────────────────────────────────────────────────
     if int(it.get("rarity_upgrades") or 0) and item_id != "ENCHANTED_BOOK":
-        v += _live_prices.get("RECOMBOBULATOR_3000", _KNOWN_VALUES.get("RECOMBOBULATOR_3000", 6_000_000))
+        rc_p = (_p2.get("RECOMBOBULATOR_3000") or
+                _live_prices.get("RECOMBOBULATOR_3000", _KNOWN_VALUES.get("RECOMBOBULATOR_3000", 6_000_000)))
+        v += rc_p * _WORTH_RECOMB
 
-    # ── Dungeon master stars ───────────────────────────────────────────────
+    # ── Dungeon master stars ──────────────────────────────────────────────
     for i in range(min(int(it.get("dungeon_item_level") or 0), 5)):
-        v += _live_prices.get(_STAR_KEYS[i], _KNOWN_VALUES.get(_STAR_KEYS[i], 0))
+        star_p = (_p2.get(_STAR_KEYS[i]) or
+                  _live_prices.get(_STAR_KEYS[i], _KNOWN_VALUES.get(_STAR_KEYS[i], 0)))
+        v += star_p * _WORTH_STAR
 
-    # ── Enchantments — ONLY for standalone enchanted books ────────────────
-    # For all other items the AH price already bakes in the enchantments.
-    if item_id == "ENCHANTED_BOOK":
-        for enc_name, enc_level in (it.get("enchantments") or {}).items():
-            enc_id = f"ENCHANTMENT_{enc_name.upper()}_{enc_level}"
-            v += _live_prices.get(enc_id, 0)
+    # ── Enchantments ──────────────────────────────────────────────────────
+    # Applied to ALL items (not just books). pricesV2 base prices are for
+    # un-enchanted items, so enchants are genuinely additive at 0.85×.
+    for enc_name, enc_level in (it.get("enchantments") or {}).items():
+        enc_upper = enc_name.upper()
+        # Stacking enchants price as lv-1 regardless of actual level
+        lookup_level = 1 if enc_upper in _STACKING_ENCHANTS else enc_level
+        price = _enc_price(enc_upper, lookup_level)
+        if price <= 0:
+            continue
+        mult = _WORTH_ENCHANT_OVERRIDES.get(enc_upper, _WORTH_ENCHANT)
+        v += price * mult
 
     return v
 
@@ -828,16 +881,31 @@ async def networth(
     # ── Price helper ──────────────────────────────────────────────────────
     def price_items(items: list[dict]) -> tuple[float, list[dict], list[dict]]:
         """Returns (total_value, valued_only, all_with_value_field).
-        Each annotated item gains: value, base_value, upgrades_value."""
+        Each annotated item gains: value, base_value, upgrades_value.
+
+        Price priority per item:
+          1. pricesV2.json (same source as SkyCrypt — most accurate)
+          2. Live bazaar / AH BIN cache
+          3. _KNOWN_VALUES fallback
+          4. AH display-name last-resort search
+        """
         valued, all_ann = [], []
         total = 0.0
         for it in items:
-            fallback = _KNOWN_VALUES.get(it["id"], 0)
-            base_val = _live_prices.get(it["id"], fallback) * it["count"]
+            item_id  = it["id"]
+            count    = it["count"]
+            fallback = _KNOWN_VALUES.get(item_id, 0)
 
-            # Last-resort: if still 0, search ah_index by display name
-            if base_val == 0 and it.get("name"):
-                base_val = _ah_name_lookup(it["name"]) * it["count"]
+            # pricesV2 has the most accurate median prices
+            p2_price = _p2.get(item_id) if _p2.ready else 0.0
+            if p2_price > 0:
+                base_val = p2_price * count
+            else:
+                live_p   = _live_prices.get(item_id, fallback)
+                base_val = live_p * count
+                # Last-resort: AH name search
+                if base_val == 0 and it.get("name"):
+                    base_val = _ah_name_lookup(it["name"]) * count
 
             upg_val = _upgrade_value(it)
             val     = base_val + upg_val

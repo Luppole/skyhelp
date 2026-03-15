@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(python -c \"\n_PET_MAX_XP = {\n    'COMMON': 3864068, 'UNCOMMON': 8333068, 'RARE': 14803068,\n    'EPIC': 25353068, 'LEGENDARY': 40603068, 'MYTHIC': 40603068,\n}\n_PET_XP_ANCHORS = [\n    \\(0.000, 1\\),\\(0.002, 10\\),\\(0.008, 20\\),\\(0.020, 30\\),\\(0.045, 40\\),\n    \\(0.090, 50\\),\\(0.175, 60\\),\\(0.315, 70\\),\\(0.510, 80\\),\\(0.720, 90\\),\n    \\(0.870, 95\\),\\(1.000, 100\\),\n]\ndef _pet_level_from_xp\\(exp, tier\\):\n    max_xp = _PET_MAX_XP.get\\(tier.upper\\(\\), 40603068\\)\n    if exp <= 0: return 1\n    if exp >= max_xp: return 100\n    ratio = exp / max_xp\n    for i in range\\(1, len\\(_PET_XP_ANCHORS\\)\\):\n        r1,l1 = _PET_XP_ANCHORS[i-1]; r2,l2 = _PET_XP_ANCHORS[i]\n        if ratio <= r2:\n            t = \\(ratio-r1\\)/\\(r2-r1\\) if r2>r1 else 0\n            return max\\(1,min\\(100,round\\(l1+t*\\(l2-l1\\)\\)\\)\\)\n    return 100\n\ndef mult\\(level\\):\n    if level >= 100: return 1.0\n    if level <= 1: return 0.20\n    return 0.20 + 0.80*\\(level/100\\)**0.75\n\nprint\\('=== LEGENDARY ==='\\)\nfor xp in [0, 100_000, 1_000_000, 5_000_000, 10_000_000, 20_000_000, 30_000_000, 40_603_068]:\n    lvl = _pet_level_from_xp\\(xp, 'LEGENDARY'\\)\n    print\\(f'  XP={xp:>12,}  lvl={lvl:3}  price_mult={mult\\(lvl\\):.2f}x'\\)\nprint\\(\\)\nprint\\('=== COMMON ==='\\)\nfor xp in [0, 50_000, 200_000, 1_000_000, 2_000_000, 3_864_068]:\n    lvl = _pet_level_from_xp\\(xp, 'COMMON'\\)\n    print\\(f'  XP={xp:>12,}  lvl={lvl:3}  price_mult={mult\\(lvl\\):.2f}x'\\)\n\" 2>&1)",
-      "Bash(python -c \"\nimport ast\nfor f in ['backend/routers/player.py', 'backend/utils/item_prices.py']:\n    with open\\(f'C:/Users/itama/Desktop/skyhelp/{f}'\\) as fh:\n        ast.parse\\(fh.read\\(\\)\\)\n    print\\(f'{f}: OK'\\)\n\")"
+      "Bash(python -c \"\nimport ast\nfor f in ['backend/routers/player.py', 'backend/utils/item_prices.py']:\n    with open\\(f'C:/Users/itama/Desktop/skyhelp/{f}'\\) as fh:\n        ast.parse\\(fh.read\\(\\)\\)\n    print\\(f'{f}: OK'\\)\n\")",
+      "WebFetch(domain:sky.shiiyu.moe)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(gh search:*)",
+      "Bash(python -c \"\nimport ast\nfiles = [\n    'backend/routers/player.py',\n    'backend/utils/item_prices.py',\n    'backend/utils/prices_v2.py',\n    'backend/main.py',\n]\nfor f in files:\n    with open\\(f'C:/Users/itama/Desktop/skyhelp/{f}'\\) as fh:\n        ast.parse\\(fh.read\\(\\)\\)\n    print\\(f'{f}: OK'\\)\n\")"
     ]
   }
 }
