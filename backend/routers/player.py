@@ -34,6 +34,30 @@ def _resolve_key(header_key: Optional[str]) -> str:
     return key
 
 
+def _upstream_exc(e: Exception) -> HTTPException:
+    """Convert a Hypixel upstream error into an appropriate HTTPException.
+
+    - Hypixel 403  → 503 Service Unavailable  (API key invalid/missing on server)
+    - Hypixel 429  → 503 Service Unavailable  (rate-limited upstream)
+    - Hypixel 404  → 404 Not Found
+    - anything else → 502 Bad Gateway
+    """
+    msg = str(e)
+    if " 403" in msg or "Invalid API key" in msg or "forbidden" in msg.lower():
+        return HTTPException(
+            status_code=503,
+            detail=(
+                "The server's Hypixel API key is invalid or expired. "
+                "Please contact the site administrator to update HYPIXEL_API_KEY."
+            ),
+        )
+    if " 429" in msg or "throttle" in msg.lower():
+        return HTTPException(status_code=503, detail="Hypixel API rate limit reached — please try again shortly.")
+    if " 404" in msg:
+        return HTTPException(status_code=404, detail=msg)
+    return HTTPException(status_code=502, detail=msg)
+
+
 # ── Minimal binary NBT parser (no external dependency) ────────────────────────
 # Only parses what Hypixel inventory NBT needs; skips over everything else.
 
@@ -720,10 +744,10 @@ async def player_lookup(
             return_exceptions=True,
         )
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Hypixel error: {e}")
+        raise _upstream_exc(e)
 
     if isinstance(profiles_result, Exception):
-        raise HTTPException(status_code=502, detail=str(profiles_result))
+        raise _upstream_exc(profiles_result)
     player_data: dict = player_data_result if not isinstance(player_data_result, Exception) else {}
 
     profiles: list = profiles_result.get("profiles", []) or []
@@ -790,7 +814,7 @@ async def profile_stats(
     try:
         full_resp = await get_skyblock_profile(api_key, profile_id)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise _upstream_exc(e)
 
     target = full_resp.get("profile") or full_resp
     if not target:
@@ -840,7 +864,7 @@ async def networth(
         try:
             profiles_data = await get_skyblock_profiles(api_key, uuid)
         except Exception as e:
-            raise HTTPException(status_code=502, detail=str(e))
+            raise _upstream_exc(e)
         profiles      = profiles_data.get("profiles", []) or []
         active_stub   = _find_active_profile(profiles, uuid.replace("-", ""))
         if not active_stub:
@@ -851,7 +875,7 @@ async def networth(
     try:
         full_resp = await get_skyblock_profile(api_key, profile_id)
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise _upstream_exc(e)
 
     profile = full_resp.get("profile") or full_resp
     if not profile:
@@ -1132,7 +1156,7 @@ async def player_auction_list(
         raw = await get_profile_auctions(api_key, profile_id) if profile_id \
               else await get_player_auctions(api_key, uuid)
     except ValueError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise _upstream_exc(e)
 
     now_ms   = __import__("time").time() * 1000
     auctions = []
