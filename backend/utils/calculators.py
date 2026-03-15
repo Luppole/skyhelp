@@ -187,12 +187,15 @@ def analyze_profile(profile_data: dict, uuid: str) -> dict:
         classes[cls] = {"level": lvl, "xp": cls_xp, "progress": prog}
 
     # ── Fairy souls ───────────────────────────────────────────────────────
-    # v2: player_data.fairy_souls_collected  |  v1: fairy_souls_collected
-    # Also check member.fairy_soul.fairy_souls_collected (some v2 builds)
+    # v2 (current): member.fairy_soul.total_collected
+    # v2 (older):   member.fairy_soul.fairy_souls_collected
+    # v2 (alt):     member.player_data.fairy_souls_collected
+    # v1:           member.fairy_souls_collected
     fairy_soul_obj = member.get("fairy_soul") or {}
     _fairy_candidates = [
-        player_data_v2.get("fairy_souls_collected"),
+        fairy_soul_obj.get("total_collected"),
         fairy_soul_obj.get("fairy_souls_collected"),
+        player_data_v2.get("fairy_souls_collected"),
         member.get("fairy_souls_collected"),
     ]
     fairy_souls = int(next((v for v in _fairy_candidates if v is not None and v != 0), 0)

@@ -20,6 +20,17 @@ router = APIRouter(prefix="/player", tags=["player"])
 
 _COLOR_STRIP = re.compile(r'§.')
 
+
+def _resolve_key(header_key: Optional[str]) -> str:
+    key = get_server_api_key() or header_key
+    if not key:
+        raise HTTPException(
+            status_code=401,
+            detail="No Hypixel API key configured. Set HYPIXEL_API_KEY in .env or pass X-Api-Key header.",
+        )
+    return key
+
+
 # ── Minimal binary NBT parser (no external dependency) ────────────────────────
 # Only parses what Hypixel inventory NBT needs; skips over everything else.
 
@@ -539,12 +550,17 @@ async def networth(
     # Wardrobe (4 pages of armour sets)
     ward_items = _decode_inventory(_inv_data("wardrobe_contents",    "wardrobe_contents"))
 
+    # v2 bag_contents is a dict keyed by bag type, each value is {"data": base64}
+    # Keys: talisman_bag, fishing_bag, potion_bag, quiver, sacks_bag
+    _bag_contents: dict = inv_v2.get("bag_contents") or {}
+
+    def _bag_data(bag_key: str) -> str:
+        """Extract base64 data from a named sub-bag inside bag_contents."""
+        return (_bag_contents.get(bag_key) or {}).get("data", "") \
+               or _inv_data(bag_key, bag_key)   # v1 fallback: flat on member or inv_v2
+
     # Talisman / accessory bag
-    # v2 name: bag_contents  |  v1 name: talisman_bag  |  alt: talismans
-    talisman_raw = (
-        _decode_inventory(_inv_data_v2_only("bag_contents"))
-        or _decode_inventory(_inv_data("talismans", "talisman_bag"))
-    )
+    talisman_raw = _decode_inventory(_bag_data("talisman_bag"))
 
     # Backpack contents — dict keyed by slot index, each {"data": base64}
     bp_raw: list[dict] = []
@@ -554,19 +570,15 @@ async def networth(
             if isinstance(slot_val, dict):
                 bp_raw.extend(_decode_inventory(slot_val.get("data", "")))
 
-    # Personal vault (safe) — 5-slot personal storage
+    # Personal vault (safe)
     vault_raw = _decode_inventory(_inv_data("personal_vault_contents", "personal_vault_contents"))
 
-    # Fishing bag
-    fishing_raw = _decode_inventory(_inv_data("fishing_bag", "fishing_bag"))
+    # Fishing bag, potion bag, quiver — all nested under bag_contents in v2
+    fishing_raw = _decode_inventory(_bag_data("fishing_bag"))
+    potion_raw  = _decode_inventory(_bag_data("potion_bag"))
+    quiver_raw  = _decode_inventory(_bag_data("quiver"))
 
-    # Potion bag
-    potion_raw = _decode_inventory(_inv_data("potion_bag", "potion_bag"))
-
-    # Quiver (arrows/bolts)
-    quiver_raw = _decode_inventory(_inv_data("quiver", "quiver"))
-
-    # Equipment (armour worn in non-armour slots — charms, necklace, belt, gloves)
+    # Equipment (non-armour slots — charms, necklace, belt, gloves)
     equip_raw = _decode_inventory(_inv_data_v2_only("equipment_contents"))
 
     # ── Price all inventory sources ───────────────────────────────────────
