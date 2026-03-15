@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Layers, Plus, Trash2, Download, Upload, TrendingUp, Cloud, BarChart2 } from 'lucide-react';
+import { Layers, Plus, Trash2, Download, Upload, TrendingUp, Cloud, BarChart2, Activity } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import PageHeader from './ui/PageHeader';
 import { useFetch } from '../hooks/useFetch';
@@ -8,6 +9,7 @@ import { supabase, supabaseEnabled } from '../utils/supabase';
 import { fetchUserData, saveUserData } from '../utils/supabaseStore';
 import { useSupabaseUser } from '../hooks/useSupabaseUser';
 import { useAuthModal } from './AuthProvider';
+import { useUserData } from '../hooks/useUserData';
 
 const STORAGE_KEY      = 'sb-portfolio';
 const HISTORY_KEY      = 'sb-portfolio-history';
@@ -45,6 +47,7 @@ function HistoryTooltip({ active, payload, label }) {
 }
 
 export default function Portfolio() {
+  const navigate = useNavigate();
   const [items, setItems]       = useState(loadPortfolio);
   const [history, setHistory]   = useState(loadHistory);
   const [form, setForm]         = useState({ name: '', itemId: '', qty: 1, avgCost: '', manualPrice: '', notes: '' });
@@ -53,6 +56,7 @@ export default function Portfolio() {
   const [sourceFilter, setSourceFilter] = useState('all');
   const { user } = useSupabaseUser();
   const { openAuth } = useAuthModal();
+  const [linkedIgn] = useUserData('player_ign', '');
 
   const fetcher = useCallback((options = {}) => fetchBazaarFlips(0, 0, 500, options), []);
   const { data, loading } = useFetch(fetcher, [], { refreshInterval: 60_000 });
@@ -235,6 +239,58 @@ export default function Portfolio() {
             <span><strong>Sign in</strong> to sync your portfolio and history across devices.</span>
           </div>
           <button className="btn-primary btn-sm" onClick={openAuth} style={{ flexShrink: 0 }}>Sign in</button>
+        </div>
+      )}
+
+      {/* Linked Minecraft Account banner */}
+      {linkedIgn ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '10px 16px',
+          background: 'var(--bg-3)',
+          border: '1px solid var(--border)',
+          borderLeft: '3px solid #3fb950',
+          borderRadius: 10,
+          marginBottom: 4,
+        }}>
+          <img
+            src={`https://mc-heads.net/avatar/${linkedIgn}/32`}
+            alt={linkedIgn}
+            style={{ width: 32, height: 32, borderRadius: 6, imageRendering: 'pixelated', flexShrink: 0 }}
+            onError={e => { e.target.style.display = 'none'; }}
+          />
+          <div style={{ flex: 1 }}>
+            <span style={{ fontWeight: 700, fontSize: 13 }}>{linkedIgn}</span>
+            <span className="text-muted" style={{ fontSize: 11, marginLeft: 8 }}>Linked Minecraft account</span>
+          </div>
+          <button
+            className="btn-secondary btn-sm"
+            onClick={() => navigate('/player')}
+          >
+            <Activity size={12} /> View Player Stats
+          </button>
+          <button
+            className="btn-secondary btn-sm"
+            onClick={() => navigate('/networth')}
+          >
+            View Net Worth
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '9px 14px',
+          background: 'var(--bg-2)',
+          border: '1px dashed var(--border-bright)',
+          borderRadius: 10,
+          marginBottom: 4,
+        }}>
+          <span className="text-muted" style={{ fontSize: 12, flex: 1 }}>
+            💡 Link your Minecraft account in <strong>Account settings</strong> to quickly jump to your player stats and net worth.
+          </span>
+          <button className="btn-secondary btn-sm" onClick={() => navigate('/account')}>
+            Link Account
+          </button>
         </div>
       )}
 

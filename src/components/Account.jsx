@@ -1,19 +1,38 @@
 import { useEffect, useState } from 'react';
-import { User, LogIn, LogOut, Mail, Link, Link2Off, RefreshCw, ShieldCheck } from 'lucide-react';
+import { User, LogIn, LogOut, Mail, Link, Link2Off, RefreshCw, ShieldCheck, Sword, Check, Activity } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import PageHeader from './ui/PageHeader';
 import { supabase, supabaseEnabled } from '../utils/supabase';
 import { useSupabaseUser } from '../hooks/useSupabaseUser';
+import { useUserData } from '../hooks/useUserData';
 
 const API_BASE        = import.meta.env.VITE_API_BASE ?? '/api';
 const DISCORD_ENABLED = Boolean(import.meta.env.VITE_DISCORD_CLIENT_ID);
 
 export default function Account() {
+  const navigate = useNavigate();
   const { user, loading } = useSupabaseUser();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [info, setInfo]         = useState('');
   const [status, setStatus]     = useState('');
   const [error, setError]       = useState('');
+
+  // Linked Minecraft IGN (shared with PlayerStats, NetWorth, etc.)
+  const [linkedIgn, setLinkedIgn] = useUserData('player_ign', '');
+  const [ignInput, setIgnInput]   = useState('');
+  const [ignSaved, setIgnSaved]   = useState(false);
+
+  // Sync input field when the saved value loads from Supabase
+  useEffect(() => { if (linkedIgn) setIgnInput(linkedIgn); }, [linkedIgn]);
+
+  function handleSaveIgn() {
+    const trimmed = ignInput.trim();
+    if (!trimmed) return;
+    setLinkedIgn(trimmed);
+    setIgnSaved(true);
+    setTimeout(() => setIgnSaved(false), 2500);
+  }
 
   // Discord state
   const [discordConn, setDiscordConn]       = useState(null);
@@ -90,10 +109,10 @@ export default function Account() {
     if (!supabase) return;
     const { error: err } = await supabase.auth.signUp({
       email, password,
-      options: { emailRedirectTo: window.location.origin },
+      options: { emailRedirectTo: `${window.location.origin}/account` },
     });
     if (err) setError(err.message);
-    else setStatus('Check your email to confirm your account.');
+    else setStatus('Check your email to confirm your account. You\'ll be redirected back here after confirming.');
   }
 
   async function signOut() {
@@ -107,10 +126,10 @@ export default function Account() {
     clearMessages();
     if (!supabase) return;
     const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
+      redirectTo: `${window.location.origin}/account`,
     });
     if (err) setError(err.message);
-    else setInfo('Password reset email sent. Check your inbox.');
+    else setInfo('Password reset email sent — check your inbox. The link will bring you back here.');
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────
@@ -175,7 +194,7 @@ export default function Account() {
             <div className="card__title">
               <span style={{ color: '#5865F2', fontWeight: 700 }}>Discord</span>
               {discordConn
-                ? <span className="tag tag-green"                                style={{ marginLeft: 8, fontSize: 10 }}>Connected</span>
+                ? <span className="tag tag-green" style={{ marginLeft: 8, fontSize: 10 }}>Connected</span>
                 : <span className="tag" style={{ marginLeft: 8, fontSize: 10, background: 'var(--bg-4)' }}>Not connected</span>}
             </div>
 
@@ -284,6 +303,97 @@ export default function Account() {
           >
             Forgot password?
           </button>
+        </div>
+      )}
+
+      {/* ── Linked Minecraft Account (always visible) ───────────────────── */}
+      {!loading && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card__title">
+            <Sword size={14} style={{ color: '#3fb950' }} /> Linked Minecraft Account
+          </div>
+          <p className="text-muted" style={{ fontSize: 13, marginBottom: linkedIgn ? 16 : 12 }}>
+            Your linked IGN auto-fills searches in Player Stats, Net Worth, and Portfolio.
+            {user ? ' It syncs across all your devices.' : ' Sign in to sync across devices.'}
+          </p>
+
+          {/* Current linked account preview */}
+          {linkedIgn && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '12px 16px',
+              background: 'var(--bg-2)',
+              border: '1px solid var(--border)',
+              borderLeft: '3px solid #3fb950',
+              borderRadius: 10,
+              marginBottom: 18,
+              flexWrap: 'wrap',
+            }}>
+              <img
+                src={`https://mc-heads.net/avatar/${linkedIgn}/48`}
+                alt={linkedIgn}
+                style={{ width: 48, height: 48, borderRadius: 8, imageRendering: 'pixelated', flexShrink: 0 }}
+                onError={e => {
+                  if (!e.target.dataset.fb) {
+                    e.target.dataset.fb = '1';
+                    e.target.src = `https://crafatar.com/avatars/${linkedIgn}?size=48&default=MHF_Steve&overlay`;
+                  } else {
+                    e.target.style.display = 'none';
+                  }
+                }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 18 }}>{linkedIgn}</div>
+                <div className="text-muted" style={{ fontSize: 11, marginTop: 2 }}>
+                  Linked Minecraft account · pre-fills search fields across the app
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => navigate('/player')}
+                >
+                  <Activity size={12} /> View Stats
+                </button>
+                <button
+                  className="btn-secondary btn-sm"
+                  onClick={() => { setLinkedIgn(''); setIgnInput(''); }}
+                  style={{ color: 'var(--red, #f87171)' }}
+                >
+                  <Link2Off size={12} /> Unlink
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* IGN input */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="field" style={{ maxWidth: 260, marginBottom: 0 }}>
+              <label>{linkedIgn ? 'Update username' : 'Minecraft username'}</label>
+              <input
+                type="text"
+                value={ignInput}
+                onChange={e => setIgnInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSaveIgn()}
+                placeholder="e.g. Technoblade"
+              />
+            </div>
+            <button
+              className="btn-primary btn-sm"
+              onClick={handleSaveIgn}
+              disabled={!ignInput.trim()}
+            >
+              {ignSaved
+                ? <><Check size={13} /> Linked!</>
+                : <><Sword size={13} /> {linkedIgn ? 'Update' : 'Link Account'}</>}
+            </button>
+          </div>
+
+          {ignSaved && (
+            <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Check size={12} /> Saved as <strong>{linkedIgn}</strong> — searches across the app are now pre-filled.
+            </div>
+          )}
         </div>
       )}
     </div>

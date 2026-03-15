@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   User, RefreshCw, Wallet, BarChart2, Shield,
-  Star, Package, Activity, Search, Layers,
+  Star, Package, Activity, Search, Layers, Check, Link,
 } from 'lucide-react';
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -208,6 +209,7 @@ function ItemsTable({ items }) {
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function PlayerStats() {
+  const navigate = useNavigate();
   const [username, setUsername]           = useUserData('player_ign', '');
   const [data, setData]                   = useState(null);
   const [nwData, setNwData]               = useState(null);
@@ -347,7 +349,7 @@ export default function PlayerStats() {
           <div className="card card--glow-gold" style={{ padding: '20px 24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
               <img
-                src={`https://crafatar.com/avatars/${data.uuid}?size=80&overlay=true`}
+                src={`https://mc-heads.net/avatar/${data.username}/80`}
                 alt={data.username}
                 style={{
                   width: 80, height: 80, borderRadius: 10, flexShrink: 0,
@@ -355,7 +357,14 @@ export default function PlayerStats() {
                   imageRendering: 'pixelated',
                   boxShadow: '0 0 20px rgba(251,191,36,0.2)',
                 }}
-                onError={e => { e.target.style.display = 'none'; }}
+                onError={e => {
+                  if (!e.target.dataset.fb) {
+                    e.target.dataset.fb = '1';
+                    e.target.src = `https://crafatar.com/avatars/${data.uuid}?size=80&overlay=true`;
+                  } else {
+                    e.target.style.display = 'none';
+                  }
+                }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
@@ -375,7 +384,7 @@ export default function PlayerStats() {
                   </div>
                 )}
                 {data.profiles?.length > 1 && (
-                  <div className="btn-group" style={{ flexWrap: 'wrap' }}>
+                  <div className="btn-group" style={{ flexWrap: 'wrap', marginBottom: 8 }}>
                     {data.profiles.map(p => (
                       <button
                         key={p.profile_id}
@@ -388,6 +397,23 @@ export default function PlayerStats() {
                     ))}
                   </div>
                 )}
+                {/* Linked account indicator */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Check size={11} /> Linked as your account
+                  </span>
+                  <span style={{ color: 'var(--border-bright)', fontSize: 10 }}>·</span>
+                  <button
+                    onClick={() => navigate('/account')}
+                    style={{
+                      background: 'none', border: 'none', padding: 0,
+                      fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer',
+                      textDecoration: 'underline', textUnderlineOffset: 2,
+                    }}
+                  >
+                    Manage in Account
+                  </button>
+                </div>
               </div>
             </div>
           </div>
