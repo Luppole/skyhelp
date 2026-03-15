@@ -7,7 +7,7 @@ export function useTrackPage() {
 
   useEffect(() => {
     if (!supabaseEnabled || !supabase) return;
-    if (localStorage.getItem('sb:disable_events') === '1') return;
+    if (localStorage.getItem('sb:allow_events') !== '1') return;
     let cancelled = false;
     async function send() {
       try {

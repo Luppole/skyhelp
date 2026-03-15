@@ -1,8 +1,11 @@
 """Cache layer with Redis (optional) + in-process fallback."""
 import json
+import logging
 import os
 import time
 from typing import Any, Awaitable, Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 try:
     import redis.asyncio as redis
@@ -24,11 +27,11 @@ async def init_cache() -> None:
         _redis = redis.from_url(url, decode_responses=True)
         await _redis.ping()
         _redis_enabled = True
-        print("[Cache] Redis enabled")
+        logger.info("[Cache] Redis enabled")
     except Exception as exc:
         _redis_enabled = False
         _redis = None
-        print(f"[Cache] Redis disabled: {exc}")
+        logger.warning("[Cache] Redis disabled: %s", exc)
 
 
 async def close_cache() -> None:

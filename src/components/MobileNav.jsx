@@ -80,6 +80,7 @@ export default function MobileNav() {
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
                 style={{ width: '100%' }}
+                aria-label="Filter navigation items"
               />
             </div>
 

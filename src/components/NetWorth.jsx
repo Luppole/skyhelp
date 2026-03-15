@@ -6,6 +6,7 @@ import { fetchPlayer, fetchNetWorth, formatCoins } from '../utils/api';
 import AnimatedNumber from './ui/AnimatedNumber';
 import { useUserData } from '../hooks/useUserData';
 import ItemModal from './ItemModal';
+import { SkeletonCard } from './ui/Skeleton';
 
 const COLORS = {
   purse:       '#f5c518',
@@ -234,7 +235,8 @@ export default function NetWorth() {
       const d = await fetchPlayer(user);
       setProfiles(d.profiles || []);
       return d.active_profile?.profile_id ?? d.profiles?.[0]?.profile_id ?? '';
-    } catch {
+    } catch (e) {
+      setError(`Could not find player "${user}": ${e.message}`);
       return '';
     }
   }
@@ -297,7 +299,7 @@ export default function NetWorth() {
 
       {loading && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-          {[1,2,3,4,5,6].map(i => <div key={i} className="skeleton" style={{ height: 90 }} />)}
+          {[1,2,3,4,5,6].map(i => <SkeletonCard key={i} rows={3} />)}
         </div>
       )}
 

@@ -4,9 +4,12 @@ Short: records buy/sell snapshots every 90 s, up to 12 hours per item.
 Long: records buy/sell snapshots every 60 minutes, up to 30 days per item.
 """
 import asyncio
+import logging
 import time
 from collections import deque
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 SHORT_MAX_SLOTS = 480    # 480 × 90 s = 43,200 s ≈ 12 h
 SHORT_INTERVAL  = 90     # seconds between snapshots
@@ -99,7 +102,7 @@ class PriceHistoryBuffer:
             if ts - self._last_long >= LONG_INTERVAL:
                 self._last_long = ts
         except Exception as exc:
-            print(f"[PriceHistory] snapshot failed: {exc}")
+            logger.warning("[PriceHistory] snapshot failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Public API

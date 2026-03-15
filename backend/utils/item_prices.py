@@ -13,9 +13,12 @@ import asyncio
 import base64
 import gzip
 import json
+import logging
 import struct
 import time
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 # ── Minimal binary NBT parser ──────────────────────────────────────────────────
 _TAG_END = 0; _TAG_BYTE = 1; _TAG_SHORT = 2; _TAG_INT = 3; _TAG_LONG = 4
@@ -283,14 +286,13 @@ class ItemPriceCache:
 
             pet_keys = sum(1 for k in new_bin if k.startswith('PET_'))
             enc_keys = sum(1 for k in new_bin if k.startswith('ENCHANTMENT_'))
-            print(
-                f"[ItemPrices] bazaar={len(new_bazaar):,}  "
-                f"bin={len(new_bin):,} (pets={pet_keys} encs={enc_keys})  "
-                f"ah={len(new_ah):,}"
+            logger.info(
+                "[ItemPrices] bazaar=%s  bin=%s (pets=%s encs=%s)  ah=%s",
+                f"{len(new_bazaar):,}", f"{len(new_bin):,}", pet_keys, enc_keys, f"{len(new_ah):,}",
             )
 
         except Exception as exc:
-            print(f"[ItemPrices] update failed: {exc}")
+            logger.warning("[ItemPrices] update failed: %s", exc)
 
     # ── Public API ─────────────────────────────────────────────────────────
 

@@ -5,9 +5,12 @@ Fetches all AH pages on startup then refreshes every 60 s.
 Searches run entirely in-process — no per-query Hypixel calls.
 """
 import asyncio
+import logging
 import os
 import time
 import httpx
+
+logger = logging.getLogger(__name__)
 
 HYPIXEL_BASE = "https://api.hypixel.net"
 BATCH_SIZE = 10          # pages fetched in parallel per batch
@@ -91,13 +94,13 @@ class AHIndex:
                 self._total_pages = effective_total
                 self._last_update = time.time()
                 self._last_error = None
-                print(f"[AH] Indexed {len(all_auctions):,} auctions across {effective_total} pages")
+                logger.info("[AH] Indexed %s auctions across %s pages", f"{len(all_auctions):,}", effective_total)
 
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             self._last_error = str(exc)
-            print(f"[AH] Refresh failed: {exc}")
+            logger.warning("[AH] Refresh failed: %s", exc)
 
     async def ensure_fresh(self, max_age_s: float = 90.0, timeout_s: float = 25.0) -> None:
         """Best-effort refresh for serverless: refresh if cold/stale, with a time budget."""

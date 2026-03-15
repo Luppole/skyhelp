@@ -1,35 +1,36 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import KoFiCorner from './components/KoFiCorner';
-import Landing from './components/Landing';
-import Dashboard from './components/Dashboard';
-import Bazaar from './components/Bazaar';
-import AuctionHouse from './components/AuctionHouse';
-import PlayerStats from './components/PlayerStats';
-import Calculators from './components/Calculators';
-import AHSniper from './components/AHSniper';
-import PriceAlerts from './components/PriceAlerts';
-import SkillPlanner from './components/SkillPlanner';
-import MinionCalc from './components/MinionCalc';
-import ReforgeOptimizer from './components/ReforgeOptimizer';
-import MayorTracker from './components/MayorTracker';
-import DungeonProfit from './components/DungeonProfit';
-import SlayerDashboard from './components/SlayerDashboard';
-import CraftChain from './components/CraftChain';
-import ShardFusion from './components/ShardFusion';
-import NetWorth from './components/NetWorth';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import { AuthProvider } from './components/AuthProvider';
-import SystemStatus from './components/SystemStatus';
-import Portfolio from './components/Portfolio';
-import Account from './components/Account';
-import GettingStarted from './components/GettingStarted';
-import FarmingUpgrades from './components/FarmingUpgrades';
-import RNGCalculator from './components/RNGCalculator';
-import MoneyMethods from './components/MoneyMethods';
 import { useTrackPage } from './hooks/useTrackPage';
+
+const Landing          = lazy(() => import('./components/Landing'));
+const Dashboard        = lazy(() => import('./components/Dashboard'));
+const Bazaar           = lazy(() => import('./components/Bazaar'));
+const AuctionHouse     = lazy(() => import('./components/AuctionHouse'));
+const PlayerStats      = lazy(() => import('./components/PlayerStats'));
+const Calculators      = lazy(() => import('./components/Calculators'));
+const AHSniper         = lazy(() => import('./components/AHSniper'));
+const PriceAlerts      = lazy(() => import('./components/PriceAlerts'));
+const SkillPlanner     = lazy(() => import('./components/SkillPlanner'));
+const MinionCalc       = lazy(() => import('./components/MinionCalc'));
+const ReforgeOptimizer = lazy(() => import('./components/ReforgeOptimizer'));
+const MayorTracker     = lazy(() => import('./components/MayorTracker'));
+const DungeonProfit    = lazy(() => import('./components/DungeonProfit'));
+const SlayerDashboard  = lazy(() => import('./components/SlayerDashboard'));
+const CraftChain       = lazy(() => import('./components/CraftChain'));
+const ShardFusion      = lazy(() => import('./components/ShardFusion'));
+const NetWorth         = lazy(() => import('./components/NetWorth'));
+const SystemStatus     = lazy(() => import('./components/SystemStatus'));
+const Portfolio        = lazy(() => import('./components/Portfolio'));
+const Account          = lazy(() => import('./components/Account'));
+const GettingStarted   = lazy(() => import('./components/GettingStarted'));
+const FarmingUpgrades  = lazy(() => import('./components/FarmingUpgrades'));
+const RNGCalculator    = lazy(() => import('./components/RNGCalculator'));
+const MoneyMethods     = lazy(() => import('./components/MoneyMethods'));
 
 const PAGE_TITLES = {
   '/':            'SkyHelper — The Ultimate SkyBlock Companion',
@@ -89,6 +90,7 @@ function AppShell() {
       <div className="app-shell">
         <Sidebar />
         <main id="main-content" className="app-main" role="main">
+          <Suspense fallback={<div className="page-loading" aria-live="polite">Loading…</div>}>
           <Routes>
             <Route path="/dashboard"   element={<Dashboard />} />
             <Route path="/bazaar"      element={<Bazaar />} />
@@ -115,6 +117,7 @@ function AppShell() {
             <Route path="/money"       element={<MoneyMethods />} />
             <Route path="*"            element={<NotFound />} />
           </Routes>
+          </Suspense>
         </main>
       </div>
     </>
@@ -127,10 +130,12 @@ export default function App() {
       <TitleSync />
       <AuthProvider>
         <ErrorBoundary>
+          <Suspense fallback={<div className="page-loading" aria-live="polite">Loading…</div>}>
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="*" element={<AppShell />} />
           </Routes>
+          </Suspense>
         </ErrorBoundary>
       </AuthProvider>
     </BrowserRouter>
