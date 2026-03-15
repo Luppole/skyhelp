@@ -126,8 +126,26 @@ def _parse_nbt_inventory(data: bytes) -> list:
     return root.get("i", [])
 
 
+def _item_from_nbt(item: dict) -> Optional[dict]:
+    """Extract {id, count, name} from a parsed NBT compound, or None if empty."""
+    if not isinstance(item, dict):
+        return None
+    tag = item.get("tag")
+    if not isinstance(tag, dict):
+        return None
+    extra   = tag.get("ExtraAttributes") or {}
+    item_id = str(extra.get("id", "") or "").strip()
+    if not item_id:
+        return None
+    count      = int(item.get("Count", 1) or 1)
+    display    = tag.get("display") or {}
+    raw_name   = str(display.get("Name", "") or "")
+    clean_name = _COLOR_STRIP.sub("", raw_name).strip() or None
+    return {"id": item_id, "count": count, "name": clean_name}
+
+
 def _decode_inventory(data_b64: str) -> list[dict]:
-    """Decode a base64-gzipped Hypixel NBT inventory blob → list[{id, count, name}]."""
+    """Decode a base64-gzipped Hypixel NBT inventory blob → list[{id, count, name}] (empty slots skipped)."""
     if not data_b64:
         return []
     try:
@@ -135,24 +153,23 @@ def _decode_inventory(data_b64: str) -> list[dict]:
         try:
             raw = gzip.decompress(raw)
         except Exception:
-            pass  # already uncompressed
-        items = []
-        for item in _parse_nbt_inventory(raw):
-            if not isinstance(item, dict):
-                continue
-            tag   = item.get("tag")
-            if not isinstance(tag, dict):
-                continue
-            extra   = tag.get("ExtraAttributes") or {}
-            item_id = str(extra.get("id", "") or "").strip()
-            if not item_id:
-                continue
-            count      = int(item.get("Count", 1) or 1)
-            display    = tag.get("display") or {}
-            raw_name   = str(display.get("Name", "") or "")
-            clean_name = _COLOR_STRIP.sub("", raw_name).strip() or None
-            items.append({"id": item_id, "count": count, "name": clean_name})
-        return items
+            pass
+        return [r for r in (_item_from_nbt(i) for i in _parse_nbt_inventory(raw)) if r]
+    except Exception:
+        return []
+
+
+def _decode_inventory_slots(data_b64: str) -> list[Optional[dict]]:
+    """Like _decode_inventory but preserves slot positions (None for empty slots)."""
+    if not data_b64:
+        return []
+    try:
+        raw = base64.b64decode(data_b64)
+        try:
+            raw = gzip.decompress(raw)
+        except Exception:
+            pass
+        return [_item_from_nbt(i) for i in _parse_nbt_inventory(raw)]
     except Exception:
         return []
 
@@ -544,48 +561,59 @@ async def networth(
     # ── Decode all inventory slots ────────────────────────────────────────
 
     # Main 36-slot inventory
-    inv_items  = _decode_inventory(_inv_data("inv_contents",         "inv_contents"))
+    inv_items  = _decode_inventory(_inv_data("inv_contents", "inv_contents"))
 
-    # Ender chest (typically 9 pages × 54 slots — stored as one large NBT)
-    ec_items   = _decode_inventory(_inv_data("ender_chest_contents", "ender_chest_contents"))
+    # Ender chest: decode with slot positions so we can split into pages (54 slots/page)
+    _ec_slots  = _decode_inventory_slots(_inv_data("ender_chest_contents", "ender_chest_contents"))
+    ec_items   = [s for s in _ec_slots if s]
 
-    # Wardrobe (4 pages of armour sets)
-    ward_items = _decode_inventory(_inv_data("wardrobe_contents",    "wardrobe_contents"))
+    # Wardrobe (4 pages of armour sets, 9 sets/page = 36 sets total)
+    # Slot layout per page: 4 rows × 9 cols, row-major. Set N in page = cols 0-8.
+    # Each set = slots [col, col+9, col+18, col+27] within that page's 36 slots.
+    _ward_slots = _decode_inventory_slots(_inv_data("wardrobe_contents", "wardrobe_contents"))
+    ward_items  = [s for s in _ward_slots if s]
 
-    # v2 bag_contents is a dict keyed by bag type, each value is {"data": base64}
-    # Keys: talisman_bag, fishing_bag, potion_bag, quiver, sacks_bag
+    # v2 bag_contents — dict keyed by bag type, each value {"data": base64}
     _bag_contents: dict = inv_v2.get("bag_contents") or {}
 
     def _bag_data(bag_key: str) -> str:
-        """Extract base64 data from a named sub-bag inside bag_contents."""
         return (_bag_contents.get(bag_key) or {}).get("data", "") \
-               or _inv_data(bag_key, bag_key)   # v1 fallback: flat on member or inv_v2
+               or _inv_data(bag_key, bag_key)
 
-    # Talisman / accessory bag
     talisman_raw = _decode_inventory(_bag_data("talisman_bag"))
+    fishing_raw  = _decode_inventory(_bag_data("fishing_bag"))
+    potion_raw   = _decode_inventory(_bag_data("potion_bag"))
+    quiver_raw   = _decode_inventory(_bag_data("quiver"))
 
-    # Backpack contents — dict keyed by slot index, each {"data": base64}
+    # Backpack: decode each physical backpack slot separately, preserving per-backpack structure
     bp_raw: list[dict] = []
+    backpack_slots: list[dict] = []
     bp_contents = inv_v2.get("backpack_contents") or member.get("backpack_contents") or {}
     if isinstance(bp_contents, dict):
-        for slot_val in bp_contents.values():
-            if isinstance(slot_val, dict):
-                bp_raw.extend(_decode_inventory(slot_val.get("data", "")))
+        for slot_key in sorted(bp_contents.keys(), key=lambda k: int(k) if str(k).isdigit() else 999):
+            slot_node = bp_contents.get(slot_key)
+            if not isinstance(slot_node, dict):
+                continue
+            slot_items = _decode_inventory(slot_node.get("data", ""))
+            if not slot_items:
+                continue
+            s_val, _, s_all = price_items(slot_items)
+            bp_raw.extend(slot_items)
+            backpack_slots.append({
+                "slot":  int(slot_key) if str(slot_key).isdigit() else slot_key,
+                "items": sorted(s_all, key=lambda x: x["value"], reverse=True),
+                "total": round(s_val),
+            })
 
-    # Personal vault (safe)
     vault_raw = _decode_inventory(_inv_data("personal_vault_contents", "personal_vault_contents"))
-
-    # Fishing bag, potion bag, quiver — all nested under bag_contents in v2
-    fishing_raw = _decode_inventory(_bag_data("fishing_bag"))
-    potion_raw  = _decode_inventory(_bag_data("potion_bag"))
-    quiver_raw  = _decode_inventory(_bag_data("quiver"))
-
-    # Equipment (non-armour slots — charms, necklace, belt, gloves)
     equip_raw = _decode_inventory(_inv_data_v2_only("equipment_contents"))
 
     # ── Price all inventory sources ───────────────────────────────────────
+    def _top(lst: list[dict], n: int) -> list[dict]:
+        return sorted(lst, key=lambda x: x["value"], reverse=True)[:n]
+
     inv_val,      inv_valued,      inv_all      = price_items(inv_items)
-    ec_val,       ec_valued,       ec_all       = price_items(ec_items)
+    ec_val,       ec_valued,       ec_all_flat  = price_items(ec_items)
     ward_val,     ward_valued,     ward_all     = price_items(ward_items)
     talisman_val, talisman_valued, talisman_all = price_items(talisman_raw)
     bp_val,       bp_valued,       bp_all       = price_items(bp_raw)
@@ -594,6 +622,44 @@ async def networth(
     potion_val,   _,               potion_all   = price_items(potion_raw)
     quiver_val,   _,               quiver_all   = price_items(quiver_raw)
     equip_val,    _,               equip_all    = price_items(equip_raw)
+
+    # ── Ender chest pages (54 slots/page) ─────────────────────────────────
+    _SLOTS_PER_PAGE = 54
+    ec_pages: list[dict] = []
+    for _page_idx in range(0, max(1, len(_ec_slots)), _SLOTS_PER_PAGE):
+        _chunk = _ec_slots[_page_idx:_page_idx + _SLOTS_PER_PAGE]
+        _page_items = [s for s in _chunk if s]
+        if not _page_items:
+            continue
+        _pv, _, _pa = price_items(_page_items)
+        ec_pages.append({
+            "page":  _page_idx // _SLOTS_PER_PAGE + 1,
+            "items": sorted(_pa, key=lambda x: x["value"], reverse=True),
+            "total": round(_pv),
+        })
+
+    # ── Wardrobe sets ─────────────────────────────────────────────────────
+    # Page layout: 36 slots per page, 9 sets × 4 rows (H/C/L/B)
+    # Set col N within a page: slots N, N+9, N+18, N+27
+    wardrobe_sets: list[dict] = []
+    _WARD_ROWS = 4
+    _WARD_COLS = 9
+    _WARD_PAGE = _WARD_ROWS * _WARD_COLS  # 36
+    for _pg in range(len(_ward_slots) // _WARD_PAGE + 1):
+        _page_base = _pg * _WARD_PAGE
+        for _col in range(_WARD_COLS):
+            _set_slots = [_ward_slots[_page_base + _col + _row * _WARD_COLS]
+                          if _page_base + _col + _row * _WARD_COLS < len(_ward_slots) else None
+                          for _row in range(_WARD_ROWS)]
+            _set_items = [s for s in _set_slots if s]
+            if not _set_items:
+                continue
+            _sv, _, _sa = price_items(_set_items)
+            wardrobe_sets.append({
+                "set":   _pg * _WARD_COLS + _col + 1,
+                "items": _sa,
+                "total": round(_sv),
+            })
 
     # ── Minions ───────────────────────────────────────────────────────────
     player_data_v2 = member.get("player_data") or {}
@@ -607,9 +673,6 @@ async def networth(
         + talisman_val + bp_val + vault_val
         + fishing_val + potion_val + quiver_val + equip_val
     )
-
-    def _top(lst: list[dict], n: int) -> list[dict]:
-        return sorted(lst, key=lambda x: x["value"], reverse=True)[:n]
 
     return {
         "username": username,
@@ -629,20 +692,20 @@ async def networth(
             "equipment":   round(equip_val),
         },
         "pets": pets_list,
-        # Valued-only (backwards-compat with NetWorth.jsx)
-        "inv_items":  _top(inv_valued,      30),
-        "ec_items":   _top(ec_valued,       30),
-        "ward_items": _top(ward_valued,     20),
-        # All items per slot (for PlayerStats inventory display)
+        # Flat sorted lists (used by some views / backwards compat)
         "inv_all":       _top(inv_all,       100),
-        "ec_all":        _top(ec_all,        100),
+        "ec_all":        _top(ec_all_flat,   200),
         "ward_all":      _top(ward_all,      100),
         "talisman_all":  _top(talisman_all,  100),
-        "backpack_all":  _top(bp_all,        100),
+        "backpack_all":  _top(bp_all,        200),
         "vault_all":     _top(vault_all,      50),
         "fishing_all":   _top(fishing_all,    50),
         "equipment_all": _top(equip_all,      20),
-        "minion_count":  minion_count,
+        # Structured per-container views
+        "ec_pages":       ec_pages,
+        "backpack_slots": backpack_slots,
+        "wardrobe_sets":  wardrobe_sets,
+        "minion_count":   minion_count,
     }
 
 

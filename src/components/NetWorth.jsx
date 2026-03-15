@@ -28,77 +28,222 @@ const LABELS = {
 };
 
 const INV_TABS = [
-  { id: 'inv',       label: '🎒 Inventory',   field: 'inv_all' },
-  { id: 'ec',        label: '📦 Ender Chest',  field: 'ec_all' },
-  { id: 'wardrobe',  label: '👕 Wardrobe',     field: 'ward_all' },
-  { id: 'backpack',  label: '🎽 Backpack',     field: 'backpack_all' },
-  { id: 'vault',     label: '🔒 Vault',        field: 'vault_all' },
-  { id: 'talismans', label: '💎 Talismans',    field: 'talisman_all' },
-  { id: 'fishing',   label: '🎣 Fishing Bag',  field: 'fishing_all' },
-  { id: 'equipment', label: '🛡️ Equipment',    field: 'equipment_all' },
+  { id: 'inv',       label: '🎒 Inventory',   field: 'inv_all',       mode: 'flat' },
+  { id: 'ec',        label: '📦 Ender Chest',  field: 'ec_pages',      mode: 'pages' },
+  { id: 'wardrobe',  label: '👕 Wardrobe',     field: 'wardrobe_sets', mode: 'sets' },
+  { id: 'backpack',  label: '🎽 Backpack',     field: 'backpack_slots',mode: 'slots' },
+  { id: 'vault',     label: '🔒 Vault',        field: 'vault_all',     mode: 'flat' },
+  { id: 'talismans', label: '💎 Talismans',    field: 'talisman_all',  mode: 'flat' },
+  { id: 'fishing',   label: '🎣 Fishing Bag',  field: 'fishing_all',   mode: 'flat' },
+  { id: 'equipment', label: '🛡️ Equipment',    field: 'equipment_all', mode: 'flat' },
 ];
+
+const SLOT_LABELS = {
+  0: 'Helmet', 1: 'Chestplate', 2: 'Leggings', 3: 'Boots',
+};
 
 function fmtItemName(id, name) {
   if (name && name.trim()) return name.trim();
   return id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
-function rarityFromValue(val) {
-  if (val >= 100_000_000) return 'legendary';
-  if (val >= 10_000_000)  return 'epic';
-  if (val >= 1_000_000)   return 'rare';
-  if (val >= 100_000)     return 'uncommon';
+function rarityColor(val) {
+  if (val >= 100_000_000) return '#f5c518';
+  if (val >= 10_000_000)  return '#bc8cff';
+  if (val >= 1_000_000)   return '#58a6ff';
+  if (val >= 100_000)     return '#3fb950';
   return null;
+}
+
+function ItemRow({ item }) {
+  const color = rarityColor(item.value);
+  return (
+    <tr>
+      <td style={{ fontWeight: 600, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {color && <span style={{ marginRight: 6, color, fontSize: 10 }}>◆</span>}
+        {fmtItemName(item.id, item.name)}
+      </td>
+      <td style={{ textAlign: 'center', color: 'var(--text-muted)', width: 52 }}>
+        {item.count > 1 ? `×${item.count}` : ''}
+      </td>
+      <td style={{ textAlign: 'right', width: 130 }}>
+        {item.value > 0
+          ? <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{formatCoins(item.value)}</span>
+          : <span className="text-dim" style={{ fontSize: 11 }}>—</span>}
+      </td>
+    </tr>
+  );
 }
 
 function ItemsTable({ items }) {
   if (!items || items.length === 0) {
-    return (
-      <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>
-        Nothing found here.
-      </div>
-    );
+    return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Nothing found here.</div>;
   }
   return (
-    <div className="table-wrap" style={{ border: 'none', maxHeight: 460, overflowY: 'auto' }}>
+    <div className="table-wrap" style={{ border: 'none', maxHeight: 420, overflowY: 'auto' }}>
       <table>
         <thead>
           <tr>
             <th>Item</th>
-            <th style={{ width: 60, textAlign: 'center' }}>Qty</th>
+            <th style={{ width: 52, textAlign: 'center' }}>Qty</th>
             <th style={{ width: 130, textAlign: 'right' }}>Est. Value</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item, i) => {
-            const rarity = rarityFromValue(item.value);
-            return (
-              <tr key={i}>
-                <td style={{ fontWeight: 600, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {rarity && (
-                    <span className={`rarity-tag rarity-${rarity}`} style={{ marginRight: 7, fontSize: 9, padding: '2px 5px' }}>
-                      ◆
-                    </span>
-                  )}
-                  {fmtItemName(item.id, item.name)}
-                </td>
-                <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                  {item.count > 1 ? `×${item.count}` : ''}
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  {item.value > 0 ? (
-                    <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{formatCoins(item.value)}</span>
-                  ) : (
-                    <span className="text-dim" style={{ fontSize: 11 }}>—</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
+          {items.map((item, i) => <ItemRow key={i} item={item} />)}
         </tbody>
       </table>
     </div>
   );
+}
+
+// ── Structured view: EC pages ─────────────────────────────────────────────────
+function EcPagesView({ pages }) {
+  const [activePage, setActivePage] = useState(0);
+  if (!pages || pages.length === 0) {
+    return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Ender Chest is empty.</div>;
+  }
+  const cur = pages[activePage];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {pages.map((p, i) => (
+          <button
+            key={i}
+            onClick={() => setActivePage(i)}
+            className={`tab-pill${activePage === i ? ' tab-pill--active' : ''}`}
+            style={{ fontSize: 12 }}
+          >
+            Page {p.page}
+            {p.total > 0 && (
+              <span style={{ marginLeft: 5, color: activePage === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>
+                · {formatCoins(p.total)}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <ItemsTable items={cur.items} />
+    </div>
+  );
+}
+
+// ── Structured view: wardrobe sets ───────────────────────────────────────────
+function WardrobeSetsView({ sets }) {
+  const [activeSet, setActiveSet] = useState(0);
+  if (!sets || sets.length === 0) {
+    return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Wardrobe is empty.</div>;
+  }
+  const cur = sets[activeSet];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {sets.map((s, i) => (
+          <button
+            key={i}
+            onClick={() => setActiveSet(i)}
+            className={`tab-pill${activeSet === i ? ' tab-pill--active' : ''}`}
+            style={{ fontSize: 12 }}
+          >
+            Set {s.set}
+            {s.total > 0 && (
+              <span style={{ marginLeft: 5, color: activeSet === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>
+                · {formatCoins(s.total)}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="table-wrap" style={{ border: 'none' }}>
+        <table>
+          <thead>
+            <tr>
+              <th>Slot</th>
+              <th>Item</th>
+              <th style={{ width: 130, textAlign: 'right' }}>Est. Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cur.items.map((item, i) => (
+              <tr key={i}>
+                <td style={{ color: 'var(--text-muted)', width: 90, fontSize: 12 }}>{SLOT_LABELS[i] || `Slot ${i + 1}`}</td>
+                <td style={{ fontWeight: 600 }}>
+                  {rarityColor(item.value) && <span style={{ marginRight: 6, color: rarityColor(item.value), fontSize: 10 }}>◆</span>}
+                  {fmtItemName(item.id, item.name)}
+                </td>
+                <td style={{ textAlign: 'right', width: 130 }}>
+                  {item.value > 0
+                    ? <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{formatCoins(item.value)}</span>
+                    : <span className="text-dim" style={{ fontSize: 11 }}>—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Structured view: per-backpack slot ───────────────────────────────────────
+function BackpackSlotsView({ slots }) {
+  const [activeSlot, setActiveSlot] = useState(0);
+  if (!slots || slots.length === 0) {
+    return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No backpacks found.</div>;
+  }
+  const cur = slots[activeSlot];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {slots.map((s, i) => (
+          <button
+            key={i}
+            onClick={() => setActiveSlot(i)}
+            className={`tab-pill${activeSlot === i ? ' tab-pill--active' : ''}`}
+            style={{ fontSize: 12 }}
+          >
+            Backpack {s.slot + 1}
+            <span style={{ marginLeft: 5, background: 'var(--bg-4)', borderRadius: 10, padding: '1px 5px', fontSize: 10, color: 'var(--text-muted)' }}>
+              {s.items.length}
+            </span>
+            {s.total > 0 && (
+              <span style={{ marginLeft: 4, color: activeSlot === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>
+                · {formatCoins(s.total)}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <ItemsTable items={cur.items} />
+    </div>
+  );
+}
+
+// ── Tab content dispatcher ────────────────────────────────────────────────────
+function TabContent({ tab, data }) {
+  if (tab.mode === 'pages') {
+    return <EcPagesView pages={data[tab.field] ?? []} />;
+  }
+  if (tab.mode === 'sets') {
+    return <WardrobeSetsView sets={data[tab.field] ?? []} />;
+  }
+  if (tab.mode === 'slots') {
+    return <BackpackSlotsView slots={data[tab.field] ?? []} />;
+  }
+  return <ItemsTable items={data[tab.field] ?? []} />;
+}
+
+// helper: total value from a tab's field
+function tabTotal(tab, data) {
+  if (tab.mode === 'flat') {
+    return (data[tab.field] ?? []).reduce((s, it) => s + (it.value || 0), 0);
+  }
+  return (data[tab.field] ?? []).reduce((s, container) => s + (container.total || 0), 0);
+}
+
+function tabCount(tab, data) {
+  if (tab.mode === 'flat') return (data[tab.field] ?? []).length;
+  return (data[tab.field] ?? []).reduce((s, c) => s + (c.items?.length || 0), 0);
 }
 
 export default function NetWorth() {
@@ -114,7 +259,6 @@ export default function NetWorth() {
     try {
       const d = await fetchPlayer(user);
       setProfiles(d.profiles || []);
-      // Return the most-recently-active profile id (first in list from backend)
       return d.active_profile?.profile_id ?? d.profiles?.[0]?.profile_id ?? '';
     } catch {
       return '';
@@ -126,9 +270,7 @@ export default function NetWorth() {
     setLoading(true); setError(''); setData(null); setInvTab('inv');
     try {
       let pid = profileId;
-      if (!pid) {
-        pid = await fetchProfiles(username.trim());
-      }
+      if (!pid) pid = await fetchProfiles(username.trim());
       const result = await fetchNetWorth(username.trim(), pid || null);
       setData(result);
     } catch (e) { setError(e.message); }
@@ -197,7 +339,7 @@ export default function NetWorth() {
               <AnimatedNumber value={data.total} formatter={formatCoins} />
             </div>
             <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
-              Based on known item values. Actual net worth may differ.
+              Based on live AH/bazaar prices. Actual net worth may differ.
             </div>
           </div>
 
@@ -242,8 +384,8 @@ export default function NetWorth() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div className="tab-pills">
               {INV_TABS.map(t => {
-                const items = data[t.field] ?? [];
-                const total = items.reduce((s, it) => s + (it.value || 0), 0);
+                const count = tabCount(t, data);
+                const total = tabTotal(t, data);
                 return (
                   <button
                     key={t.id}
@@ -251,9 +393,9 @@ export default function NetWorth() {
                     onClick={() => setInvTab(t.id)}
                   >
                     {t.label}
-                    {items.length > 0 && (
+                    {count > 0 && (
                       <span style={{ marginLeft: 5, background: 'var(--bg-4)', borderRadius: 10, padding: '1px 6px', fontSize: 10, color: 'var(--text-muted)' }}>
-                        {items.length}
+                        {count}
                       </span>
                     )}
                     {total > 0 && invTab === t.id && (
@@ -271,8 +413,7 @@ export default function NetWorth() {
                 <div className="card__title">
                   {t.label}
                   {(() => {
-                    const items = data[t.field] ?? [];
-                    const total = items.reduce((s, it) => s + (it.value || 0), 0);
+                    const total = tabTotal(t, data);
                     return total > 0 ? (
                       <span style={{ marginLeft: 'auto', color: 'var(--gold)', fontWeight: 700, fontSize: 14, textTransform: 'none', letterSpacing: 0 }}>
                         ~{formatCoins(total)}
@@ -280,7 +421,7 @@ export default function NetWorth() {
                     ) : null;
                   })()}
                 </div>
-                <ItemsTable items={data[t.field] ?? []} />
+                <TabContent tab={t} data={data} />
               </div>
             ))}
           </div>

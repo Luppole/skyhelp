@@ -95,14 +95,16 @@ class ItemPriceCache:
     """
     Background-updated dict of {SKYBLOCK_ITEM_ID: price_per_item}.
 
-    Price sources:
-      bazaar  → quick_status.sellPrice  (what a buyer is paying = what you receive minus sell tax)
-      ah      → 25th-percentile of recent ended-auction sale prices (roughly "low price")
+    Price sources (priority order):
+      bazaar  → quick_status.sellPrice  (instant-sell price)
+      bin     → lowest active BIN listing from ah_index
+      ah      → 25th-percentile of recent ended-auction sale prices
     """
 
     def __init__(self) -> None:
         self._bazaar: dict[str, float] = {}   # item_id → sell price
-        self._ah: dict[str, float] = {}       # item_id → recent AH price
+        self._bin:    dict[str, float] = {}   # item_id → lowest active BIN
+        self._ah:     dict[str, float] = {}   # item_id → recent ended-AH price
         self._last_update: float = 0.0
         self._task: Optional[asyncio.Task] = None
 
@@ -129,6 +131,7 @@ class ItemPriceCache:
 
     async def _update(self) -> None:
         from .hypixel import get_bazaar, get_ended_auctions
+        from .ah_index import ah_index
         try:
             bazaar_resp, ended_resp = await asyncio.gather(
                 get_bazaar(),
@@ -157,7 +160,6 @@ class ItemPriceCache:
                     item_id = _extract_item_id(item_bytes)
                     if not item_id:
                         continue
-                    # Don't override bazaar items — bazaar prices are more reliable
                     if item_id in new_bazaar:
                         continue
                     new_ah.setdefault(item_id, []).append(float(price))
@@ -168,10 +170,29 @@ class ItemPriceCache:
                 s = sorted(sales)
                 ah_prices[item_id] = s[max(0, len(s) // 4)]
 
+            # ── Active BIN auctions (lowest price per item) ─────────────
+            new_bin: dict[str, float] = {}
+            if ah_index.ready:
+                for auction in ah_index._auctions:
+                    if not auction.get('bin'):
+                        continue
+                    price = float(auction.get('starting_bid', 0) or 0)
+                    if price <= 0:
+                        continue
+                    item_bytes = auction.get('item_bytes', '')
+                    if not item_bytes:
+                        continue
+                    item_id = _extract_item_id(item_bytes)
+                    if not item_id or item_id in new_bazaar:
+                        continue
+                    if item_id not in new_bin or price < new_bin[item_id]:
+                        new_bin[item_id] = price
+
             self._bazaar = new_bazaar
+            self._bin    = new_bin
             self._ah     = ah_prices
             self._last_update = time.time()
-            print(f"[ItemPrices] bazaar={len(new_bazaar):,}  ah={len(ah_prices):,}")
+            print(f"[ItemPrices] bazaar={len(new_bazaar):,}  bin={len(new_bin):,}  ah={len(ah_prices):,}")
 
         except Exception as exc:
             print(f"[ItemPrices] update failed: {exc}")
@@ -179,8 +200,8 @@ class ItemPriceCache:
     # ── Public API ────────────────────────────────────────────────────────
 
     def get(self, item_id: str, fallback: float = 0.0) -> float:
-        """Return price per 1 unit. Bazaar > AH > fallback."""
-        return self._bazaar.get(item_id) or self._ah.get(item_id) or fallback
+        """Return price per 1 unit. Bazaar > lowest BIN > ended AH > fallback."""
+        return self._bazaar.get(item_id) or self._bin.get(item_id) or self._ah.get(item_id) or fallback
 
     def get_bazaar(self, item_id: str) -> float:
         return self._bazaar.get(item_id, 0.0)
@@ -192,9 +213,12 @@ class ItemPriceCache:
     def ready(self) -> bool:
         return self._last_update > 0
 
+    def get_bin(self, item_id: str) -> float:
+        return self._bin.get(item_id, 0.0)
+
     @property
     def item_count(self) -> int:
-        return len(self._bazaar) + len(self._ah)
+        return len(self._bazaar) + len(self._bin) + len(self._ah)
 
 
 # Module-level singleton imported by routers
