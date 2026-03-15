@@ -55,13 +55,13 @@ def _nbt_read(buf: memoryview, pos: int, tag: int):
     raise ValueError(f"Unknown NBT tag {tag}")
 
 
-def _extract_item_id(item_bytes_b64: str) -> Optional[str]:
+def _parse_item_extra(item_bytes_b64: str) -> tuple[Optional[str], dict]:
     """
-    Decode a Hypixel AH / inventory item_bytes field and return the
-    SkyBlock item ID string (ExtraAttributes.id), or None if not found.
+    Decode a Hypixel AH item_bytes blob and return (skyblock_id, enchantments_dict).
+    enchantments_dict is non-empty only for ENCHANTED_BOOK items.
     """
     if not item_bytes_b64:
-        return None
+        return None, {}
     try:
         raw = base64.b64decode(item_bytes_b64)
         try:
@@ -70,20 +70,32 @@ def _extract_item_id(item_bytes_b64: str) -> Optional[str]:
             pass
         buf = memoryview(raw)
         if len(buf) < 3 or buf[0] != _TAG_COMPOUND:
-            return None
+            return None, {}
         pos = 1
         nlen = struct.unpack_from('>H', buf, pos)[0]; pos += 2 + nlen
         root, _ = _nbt_read(buf, pos, _TAG_COMPOUND)
         items_list = root.get('i') or []
         if not items_list or not isinstance(items_list[0], dict):
-            return None
-        item = items_list[0]
-        tag  = item.get('tag') or {}
+            return None, {}
+        item  = items_list[0]
+        tag   = item.get('tag') or {}
         extra = tag.get('ExtraAttributes') or {}
-        sid = str(extra.get('id', '') or '').strip()
-        return sid or None
+        sid   = str(extra.get('id', '') or '').strip()
+        if not sid:
+            return None, {}
+        enc_raw = extra.get('enchantments') or {}
+        enchants = ({str(k): int(v) for k, v in enc_raw.items()
+                     if isinstance(v, (int, float))}
+                    if isinstance(enc_raw, dict) else {})
+        return sid, enchants
     except Exception:
-        return None
+        return None, {}
+
+
+def _extract_item_id(item_bytes_b64: str) -> Optional[str]:
+    """Backwards-compatible wrapper — returns only the SkyBlock item ID."""
+    sid, _ = _parse_item_extra(item_bytes_b64)
+    return sid
 
 
 # ── Price cache ────────────────────────────────────────────────────────────────
@@ -170,7 +182,7 @@ class ItemPriceCache:
                 s = sorted(sales)
                 ah_prices[item_id] = s[max(0, len(s) // 4)]
 
-            # ── Active BIN auctions (lowest price per item) ─────────────
+            # ── Active BIN auctions (lowest price per item / enchant) ────
             new_bin: dict[str, float] = {}
             if ah_index.ready:
                 for auction in ah_index._auctions:
@@ -182,11 +194,18 @@ class ItemPriceCache:
                     item_bytes = auction.get('item_bytes', '')
                     if not item_bytes:
                         continue
-                    item_id = _extract_item_id(item_bytes)
+                    item_id, enchants = _parse_item_extra(item_bytes)
                     if not item_id or item_id in new_bazaar:
                         continue
-                    if item_id not in new_bin or price < new_bin[item_id]:
-                        new_bin[item_id] = price
+                    # Enchanted books: index each enchantment separately
+                    if item_id == 'ENCHANTED_BOOK' and enchants:
+                        for enc_name, enc_level in enchants.items():
+                            enc_key = f"ENCHANTMENT_{enc_name.upper()}_{enc_level}"
+                            if enc_key not in new_bin or price < new_bin[enc_key]:
+                                new_bin[enc_key] = price
+                    else:
+                        if item_id not in new_bin or price < new_bin[item_id]:
+                            new_bin[item_id] = price
 
             self._bazaar = new_bazaar
             self._bin    = new_bin

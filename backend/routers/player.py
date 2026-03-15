@@ -127,7 +127,7 @@ def _parse_nbt_inventory(data: bytes) -> list:
 
 
 def _item_from_nbt(item: dict) -> Optional[dict]:
-    """Extract {id, count, name} from a parsed NBT compound, or None if empty."""
+    """Extract full item data from a parsed NBT compound, or None if empty slot."""
     if not isinstance(item, dict):
         return None
     tag = item.get("tag")
@@ -137,11 +137,68 @@ def _item_from_nbt(item: dict) -> Optional[dict]:
     item_id = str(extra.get("id", "") or "").strip()
     if not item_id:
         return None
-    count      = int(item.get("Count", 1) or 1)
-    display    = tag.get("display") or {}
+
+    count   = int(item.get("Count", 1) or 1)
+    display = tag.get("display") or {}
+
     raw_name   = str(display.get("Name", "") or "")
     clean_name = _COLOR_STRIP.sub("", raw_name).strip() or None
-    return {"id": item_id, "count": count, "name": clean_name}
+
+    # Lore: preserve §-color codes for frontend rendering, cap at 30 lines
+    lore_raw = display.get("Lore")
+    lore = [str(l) for l in lore_raw if l is not None][:30] if isinstance(lore_raw, list) else []
+
+    # Enchantments: {name: level}
+    enc_raw = extra.get("enchantments") or {}
+    enchantments = ({str(k): int(v) for k, v in enc_raw.items()
+                     if isinstance(v, (int, float))}
+                    if isinstance(enc_raw, dict) else {})
+
+    # Upgrade counters
+    hot_potato_count   = int(extra.get("hot_potato_count")   or 0)
+    rarity_upgrades    = int(extra.get("rarity_upgrades")    or 0)
+    dungeon_item_level = int(extra.get("dungeon_item_level") or extra.get("upgrade_level") or 0)
+    reforge            = str(extra.get("modifier") or "").replace("_", " ").title()
+    skin               = str(extra.get("skin") or "")
+
+    # Gems (simplified display list)
+    gems_raw = extra.get("gems") or {}
+    gems: list[str] = []
+    if isinstance(gems_raw, dict):
+        for k, v in gems_raw.items():
+            if not isinstance(k, str) or k == "unlocked_slots" or k.endswith("_gem"):
+                continue
+            if isinstance(v, str) and v:
+                gems.append(v.replace("_", " ").title())
+            elif isinstance(v, dict):
+                gqual = str(v.get("quality") or v.get("type") or "")
+                gtype = str(v.get("type") or "")
+                desc  = f"{gqual} {gtype}".strip()
+                if desc:
+                    gems.append(desc.replace("_", " ").title())
+
+    # Kuudra attributes {display_name: tier}
+    attr_raw = extra.get("attributes") or {}
+    attributes: dict[str, int] = {}
+    if isinstance(attr_raw, dict):
+        for k, v in attr_raw.items():
+            if isinstance(v, (int, float)):
+                attributes[str(k).replace("_", " ").title()] = int(v)
+
+    return {
+        "id":                  item_id,
+        "count":               count,
+        "name":                clean_name,
+        "lore":                lore,
+        "enchantments":        enchantments,
+        "hot_potato_count":    hot_potato_count,
+        "rarity_upgrades":     rarity_upgrades,
+        "dungeon_item_level":  dungeon_item_level,
+        "reforge":             reforge,
+        "skin":                skin,
+        "gems":                gems,
+        "attributes":          attributes,
+    }
 
 
 def _decode_inventory(data_b64: str) -> list[dict]:
@@ -263,8 +320,16 @@ _KNOWN_VALUES: dict[str, float] = {
     "BLAZE_CHESTPLATE":         3_000_000,
     "BLAZE_LEGGINGS":           2_500_000,
     "BLAZE_BOOTS":              2_000_000,
+    # Upgrade materials (fallback prices if not in live cache)
+    "HOT_POTATO_BOOK":            600_000,
+    "FUMING_POTATO_BOOK":      12_000_000,
+    "FIRST_MASTER_STAR":        5_000_000,
+    "SECOND_MASTER_STAR":       8_000_000,
+    "THIRD_MASTER_STAR":       15_000_000,
+    "FOURTH_MASTER_STAR":      25_000_000,
+    "FIFTH_MASTER_STAR":       50_000_000,
     # Accessories
-    "RECOMBOBULATOR_3000":     15_000_000,
+    "RECOMBOBULATOR_3000":      6_000_000,
     "HEGEMONY_ARTIFACT":      200_000_000,
     "WITHER_ARTIFACT":         50_000_000,
     "WITHER_RELIC":            80_000_000,
@@ -304,6 +369,31 @@ def _estimate_pet_value(pet: dict) -> float:
     ptype = pet.get("type", "").upper().replace("_", " ")
     tier  = pet.get("tier", "COMMON").upper()
     return PET_BASE_VALUES.get(ptype, {}).get(tier, 50_000)
+
+
+# ── Item upgrade valuation ─────────────────────────────────────────────────────
+_STAR_KEYS = [
+    "FIRST_MASTER_STAR",  "SECOND_MASTER_STAR", "THIRD_MASTER_STAR",
+    "FOURTH_MASTER_STAR", "FIFTH_MASTER_STAR",
+]
+
+
+def _upgrade_value(it: dict) -> float:
+    """Estimate the coin value of upgrades applied to an item (HPB, recomb, stars, enchants)."""
+    v = 0.0
+    hpb = int(it.get("hot_potato_count") or 0)
+    if hpb:
+        hpb_p    = _live_prices.get("HOT_POTATO_BOOK",   _KNOWN_VALUES.get("HOT_POTATO_BOOK",   600_000))
+        fuming_p = _live_prices.get("FUMING_POTATO_BOOK", _KNOWN_VALUES.get("FUMING_POTATO_BOOK", 12_000_000))
+        v += min(hpb, 10) * hpb_p + max(0, hpb - 10) * fuming_p
+    if int(it.get("rarity_upgrades") or 0):
+        v += _live_prices.get("RECOMBOBULATOR_3000", _KNOWN_VALUES.get("RECOMBOBULATOR_3000", 6_000_000))
+    for i in range(min(int(it.get("dungeon_item_level") or 0), 5)):
+        v += _live_prices.get(_STAR_KEYS[i], _KNOWN_VALUES.get(_STAR_KEYS[i], 0))
+    for enc_name, enc_level in (it.get("enchantments") or {}).items():
+        enc_id = f"ENCHANTMENT_{enc_name.upper()}_{enc_level}"
+        v += _live_prices.get(enc_id, 0)
+    return v
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -517,13 +607,16 @@ async def networth(
 
     # ── Price helper ──────────────────────────────────────────────────────
     def price_items(items: list[dict]) -> tuple[float, list[dict], list[dict]]:
-        """Returns (total_value, valued_only, all_with_value_field)."""
+        """Returns (total_value, valued_only, all_with_value_field).
+        Each annotated item gains: value, base_value, upgrades_value."""
         valued, all_ann = [], []
         total = 0.0
         for it in items:
-            fallback = _KNOWN_VALUES.get(it["id"], 0)
-            val = _live_prices.get(it["id"], fallback) * it["count"]
-            ann = {**it, "value": val}
+            fallback  = _KNOWN_VALUES.get(it["id"], 0)
+            base_val  = _live_prices.get(it["id"], fallback) * it["count"]
+            upg_val   = _upgrade_value(it)
+            val       = base_val + upg_val
+            ann       = {**it, "value": round(val), "base_value": round(base_val), "upgrades_value": round(upg_val)}
             all_ann.append(ann)
             if val > 0:
                 total += val
@@ -541,8 +634,15 @@ async def networth(
         or 0
     )
 
-    # Co-op banking lives at the profile level (not member level)
-    banking = float((profile.get("banking") or {}).get("balance", 0) or 0)
+    # Banking: check profile-level co-op bank, then member-level personal bank
+    _banking_obj  = profile.get("banking") or {}
+    _member_prof  = member.get("profile") or {}
+    banking = float(
+        _banking_obj.get("balance")
+        or _member_prof.get("bank_account")
+        or member.get("bank_account")
+        or 0
+    )
 
     # ── Pets ──────────────────────────────────────────────────────────────
     # v2: member.pets_data.pets  |  v1: member.pets

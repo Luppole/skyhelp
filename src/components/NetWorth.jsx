@@ -5,6 +5,7 @@ import PageHeader from './ui/PageHeader';
 import { fetchPlayer, fetchNetWorth, formatCoins } from '../utils/api';
 import AnimatedNumber from './ui/AnimatedNumber';
 import { useUserData } from '../hooks/useUserData';
+import ItemModal from './ItemModal';
 
 const COLORS = {
   purse:       '#f5c518',
@@ -55,13 +56,22 @@ function rarityColor(val) {
   return null;
 }
 
-function ItemRow({ item }) {
+function ItemRow({ item, onSelect }) {
   const color = rarityColor(item.value);
   return (
-    <tr>
+    <tr
+      onClick={() => onSelect(item)}
+      style={{ cursor: 'pointer' }}
+      className="clickable-row"
+    >
       <td style={{ fontWeight: 600, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {color && <span style={{ marginRight: 6, color, fontSize: 10 }}>◆</span>}
         {fmtItemName(item.id, item.name)}
+        {item.dungeon_item_level > 0 && (
+          <span style={{ marginLeft: 5, color: '#f5c518', fontSize: 10 }}>{'✦'.repeat(Math.min(item.dungeon_item_level, 5))}</span>
+        )}
+        {item.rarity_upgrades > 0 && <span style={{ marginLeft: 4, color: '#bc8cff', fontSize: 9 }}>✦RC</span>}
+        {item.hot_potato_count > 0 && <span style={{ marginLeft: 4, color: '#ff9f43', fontSize: 9 }}>{item.hot_potato_count}🥔</span>}
       </td>
       <td style={{ textAlign: 'center', color: 'var(--text-muted)', width: 52 }}>
         {item.count > 1 ? `×${item.count}` : ''}
@@ -75,7 +85,7 @@ function ItemRow({ item }) {
   );
 }
 
-function ItemsTable({ items }) {
+function ItemsTable({ items, onSelect }) {
   if (!items || items.length === 0) {
     return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Nothing found here.</div>;
   }
@@ -90,7 +100,7 @@ function ItemsTable({ items }) {
           </tr>
         </thead>
         <tbody>
-          {items.map((item, i) => <ItemRow key={i} item={item} />)}
+          {items.map((item, i) => <ItemRow key={i} item={item} onSelect={onSelect} />)}
         </tbody>
       </table>
     </div>
@@ -98,82 +108,61 @@ function ItemsTable({ items }) {
 }
 
 // ── Structured view: EC pages ─────────────────────────────────────────────────
-function EcPagesView({ pages }) {
+function EcPagesView({ pages, onSelect }) {
   const [activePage, setActivePage] = useState(0);
   if (!pages || pages.length === 0) {
     return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Ender Chest is empty.</div>;
   }
-  const cur = pages[activePage];
+  const cur = pages[Math.min(activePage, pages.length - 1)];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {pages.map((p, i) => (
-          <button
-            key={i}
-            onClick={() => setActivePage(i)}
-            className={`tab-pill${activePage === i ? ' tab-pill--active' : ''}`}
-            style={{ fontSize: 12 }}
-          >
+          <button key={i} onClick={() => setActivePage(i)}
+            className={`tab-pill${activePage === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
             Page {p.page}
-            {p.total > 0 && (
-              <span style={{ marginLeft: 5, color: activePage === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>
-                · {formatCoins(p.total)}
-              </span>
-            )}
+            {p.total > 0 && <span style={{ marginLeft: 5, color: activePage === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>· {formatCoins(p.total)}</span>}
           </button>
         ))}
       </div>
-      <ItemsTable items={cur.items} />
+      <ItemsTable items={cur.items} onSelect={onSelect} />
     </div>
   );
 }
 
 // ── Structured view: wardrobe sets ───────────────────────────────────────────
-function WardrobeSetsView({ sets }) {
+function WardrobeSetsView({ sets, onSelect }) {
   const [activeSet, setActiveSet] = useState(0);
   if (!sets || sets.length === 0) {
     return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Wardrobe is empty.</div>;
   }
-  const cur = sets[activeSet];
+  const cur = sets[Math.min(activeSet, sets.length - 1)];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {sets.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => setActiveSet(i)}
-            className={`tab-pill${activeSet === i ? ' tab-pill--active' : ''}`}
-            style={{ fontSize: 12 }}
-          >
+          <button key={i} onClick={() => setActiveSet(i)}
+            className={`tab-pill${activeSet === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
             Set {s.set}
-            {s.total > 0 && (
-              <span style={{ marginLeft: 5, color: activeSet === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>
-                · {formatCoins(s.total)}
-              </span>
-            )}
+            {s.total > 0 && <span style={{ marginLeft: 5, color: activeSet === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>· {formatCoins(s.total)}</span>}
           </button>
         ))}
       </div>
       <div className="table-wrap" style={{ border: 'none' }}>
         <table>
           <thead>
-            <tr>
-              <th>Slot</th>
-              <th>Item</th>
-              <th style={{ width: 130, textAlign: 'right' }}>Est. Value</th>
-            </tr>
+            <tr><th>Slot</th><th>Item</th><th style={{ width: 130, textAlign: 'right' }}>Est. Value</th></tr>
           </thead>
           <tbody>
             {cur.items.map((item, i) => (
-              <tr key={i}>
+              <tr key={i} onClick={() => onSelect(item)} style={{ cursor: 'pointer' }} className="clickable-row">
                 <td style={{ color: 'var(--text-muted)', width: 90, fontSize: 12 }}>{SLOT_LABELS[i] || `Slot ${i + 1}`}</td>
                 <td style={{ fontWeight: 600 }}>
                   {rarityColor(item.value) && <span style={{ marginRight: 6, color: rarityColor(item.value), fontSize: 10 }}>◆</span>}
                   {fmtItemName(item.id, item.name)}
                 </td>
                 <td style={{ textAlign: 'right', width: 130 }}>
-                  {item.value > 0
-                    ? <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{formatCoins(item.value)}</span>
+                  {item.value > 0 ? <span style={{ color: 'var(--gold)', fontWeight: 700 }}>{formatCoins(item.value)}</span>
                     : <span className="text-dim" style={{ fontSize: 11 }}>—</span>}
                 </td>
               </tr>
@@ -186,51 +175,35 @@ function WardrobeSetsView({ sets }) {
 }
 
 // ── Structured view: per-backpack slot ───────────────────────────────────────
-function BackpackSlotsView({ slots }) {
+function BackpackSlotsView({ slots, onSelect }) {
   const [activeSlot, setActiveSlot] = useState(0);
   if (!slots || slots.length === 0) {
     return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No backpacks found.</div>;
   }
-  const cur = slots[activeSlot];
+  const cur = slots[Math.min(activeSlot, slots.length - 1)];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {slots.map((s, i) => (
-          <button
-            key={i}
-            onClick={() => setActiveSlot(i)}
-            className={`tab-pill${activeSlot === i ? ' tab-pill--active' : ''}`}
-            style={{ fontSize: 12 }}
-          >
+          <button key={i} onClick={() => setActiveSlot(i)}
+            className={`tab-pill${activeSlot === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
             Backpack {s.slot + 1}
-            <span style={{ marginLeft: 5, background: 'var(--bg-4)', borderRadius: 10, padding: '1px 5px', fontSize: 10, color: 'var(--text-muted)' }}>
-              {s.items.length}
-            </span>
-            {s.total > 0 && (
-              <span style={{ marginLeft: 4, color: activeSlot === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>
-                · {formatCoins(s.total)}
-              </span>
-            )}
+            <span style={{ marginLeft: 5, background: 'var(--bg-4)', borderRadius: 10, padding: '1px 5px', fontSize: 10, color: 'var(--text-muted)' }}>{s.items.length}</span>
+            {s.total > 0 && <span style={{ marginLeft: 4, color: activeSlot === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>· {formatCoins(s.total)}</span>}
           </button>
         ))}
       </div>
-      <ItemsTable items={cur.items} />
+      <ItemsTable items={cur.items} onSelect={onSelect} />
     </div>
   );
 }
 
 // ── Tab content dispatcher ────────────────────────────────────────────────────
-function TabContent({ tab, data }) {
-  if (tab.mode === 'pages') {
-    return <EcPagesView pages={data[tab.field] ?? []} />;
-  }
-  if (tab.mode === 'sets') {
-    return <WardrobeSetsView sets={data[tab.field] ?? []} />;
-  }
-  if (tab.mode === 'slots') {
-    return <BackpackSlotsView slots={data[tab.field] ?? []} />;
-  }
-  return <ItemsTable items={data[tab.field] ?? []} />;
+function TabContent({ tab, data, onSelect }) {
+  if (tab.mode === 'pages')  return <EcPagesView     pages={data[tab.field] ?? []} onSelect={onSelect} />;
+  if (tab.mode === 'sets')   return <WardrobeSetsView sets={data[tab.field]  ?? []} onSelect={onSelect} />;
+  if (tab.mode === 'slots')  return <BackpackSlotsView slots={data[tab.field] ?? []} onSelect={onSelect} />;
+  return <ItemsTable items={data[tab.field] ?? []} onSelect={onSelect} />;
 }
 
 // helper: total value from a tab's field
@@ -247,13 +220,14 @@ function tabCount(tab, data) {
 }
 
 export default function NetWorth() {
-  const [username, setUsername]   = useUserData('player_ign', '');
-  const [profileId, setProfileId] = useState('');
-  const [data, setData]           = useState(null);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState('');
-  const [profiles, setProfiles]   = useState([]);
-  const [invTab, setInvTab]       = useState('inv');
+  const [username, setUsername]     = useUserData('player_ign', '');
+  const [profileId, setProfileId]   = useState('');
+  const [data, setData]             = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState('');
+  const [profiles, setProfiles]     = useState([]);
+  const [invTab, setInvTab]         = useState('inv');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   async function fetchProfiles(user) {
     try {
@@ -277,8 +251,12 @@ export default function NetWorth() {
     finally { setLoading(false); }
   }
 
-  const breakdownEntries = data ? Object.entries(data.breakdown).filter(([, v]) => v > 0) : [];
-  const pieData = breakdownEntries.map(([key, value]) => ({
+  // Always show purse + bank even when 0; filter everything else to > 0
+  const ALWAYS_SHOW = new Set(['purse', 'bank']);
+  const breakdownEntries = data
+    ? Object.entries(data.breakdown).filter(([k, v]) => ALWAYS_SHOW.has(k) || v > 0)
+    : [];
+  const pieData = breakdownEntries.filter(([, v]) => v > 0).map(([key, value]) => ({
     name:  LABELS[key] || key,
     value,
     color: COLORS[key] || '#888',
@@ -286,6 +264,7 @@ export default function NetWorth() {
 
   return (
     <div className="page">
+      {selectedItem && <ItemModal item={selectedItem} onClose={() => setSelectedItem(null)} />}
       <PageHeader
         icon={Wallet}
         title="Net Worth Estimator"
@@ -421,7 +400,7 @@ export default function NetWorth() {
                     ) : null;
                   })()}
                 </div>
-                <TabContent tab={t} data={data} />
+                <TabContent tab={t} data={data} onSelect={setSelectedItem} />
               </div>
             ))}
           </div>
