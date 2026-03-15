@@ -40,7 +40,8 @@ async def lifespan(app: FastAPI):
         await price_history.start()
         await item_prices.start()
         await prices_v2.start()
-    asyncio.create_task(push.run_alert_checker())
+    if not os.environ.get("VERCEL"):
+        asyncio.create_task(push.run_alert_checker())
     yield
     await price_history.stop()
     await ah_index.stop()
