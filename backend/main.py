@@ -20,6 +20,7 @@ from .utils.item_prices import item_prices
 from .utils.cache import stats as cache_stats, init_cache, close_cache
 from .utils.prices_v2 import prices_v2
 from .routers import bazaar, auctions, player, mayor, prices, push, garden
+from .routers import discord_oauth
 
 START_TIME = time.time()
 
@@ -78,6 +79,7 @@ app.include_router(mayor.router)
 app.include_router(prices.router)
 app.include_router(push.router)
 app.include_router(garden.router)
+app.include_router(discord_oauth.router)
 
 
 @app.get("/")

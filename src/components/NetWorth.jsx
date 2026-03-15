@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Wallet, RefreshCw, User } from 'lucide-react';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { Wallet, RefreshCw, User, Save, History, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import PageHeader from './ui/PageHeader';
 import { fetchPlayer, fetchNetWorth, formatCoins } from '../utils/api';
 import AnimatedNumber from './ui/AnimatedNumber';
 import { useUserData } from '../hooks/useUserData';
 import ItemModal from './ItemModal';
 import { SkeletonCard } from './ui/Skeleton';
+import { usePlayerTracking } from '../hooks/usePlayerTracking';
+import { useSupabaseUser } from '../hooks/useSupabaseUser';
 
 const COLORS = {
   purse:       '#f5c518',
@@ -40,9 +42,7 @@ const INV_TABS = [
   { id: 'equipment', label: '🛡️ Equipment',    field: 'equipment_all', mode: 'flat' },
 ];
 
-const SLOT_LABELS = {
-  0: 'Helmet', 1: 'Chestplate', 2: 'Leggings', 3: 'Boots',
-};
+const SLOT_LABELS = { 0: 'Helmet', 1: 'Chestplate', 2: 'Leggings', 3: 'Boots' };
 
 function fmtItemName(id, name) {
   if (name && name.trim()) return name.trim();
@@ -60,11 +60,7 @@ function rarityColor(val) {
 function ItemRow({ item, onSelect }) {
   const color = rarityColor(item.value);
   return (
-    <tr
-      onClick={() => onSelect(item)}
-      style={{ cursor: 'pointer' }}
-      className="clickable-row"
-    >
+    <tr onClick={() => onSelect(item)} style={{ cursor: 'pointer' }} className="clickable-row">
       <td style={{ fontWeight: 600, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {color && <span style={{ marginRight: 6, color, fontSize: 10 }}>◆</span>}
         {fmtItemName(item.id, item.name)}
@@ -108,19 +104,15 @@ function ItemsTable({ items, onSelect }) {
   );
 }
 
-// ── Structured view: EC pages ─────────────────────────────────────────────────
 function EcPagesView({ pages, onSelect }) {
   const [activePage, setActivePage] = useState(0);
-  if (!pages || pages.length === 0) {
-    return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Ender Chest is empty.</div>;
-  }
+  if (!pages || pages.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Ender Chest is empty.</div>;
   const cur = pages[Math.min(activePage, pages.length - 1)];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {pages.map((p, i) => (
-          <button key={i} onClick={() => setActivePage(i)}
-            className={`tab-pill${activePage === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
+          <button key={i} onClick={() => setActivePage(i)} className={`tab-pill${activePage === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
             Page {p.page}
             {p.total > 0 && <span style={{ marginLeft: 5, color: activePage === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>· {formatCoins(p.total)}</span>}
           </button>
@@ -131,19 +123,15 @@ function EcPagesView({ pages, onSelect }) {
   );
 }
 
-// ── Structured view: wardrobe sets ───────────────────────────────────────────
 function WardrobeSetsView({ sets, onSelect }) {
   const [activeSet, setActiveSet] = useState(0);
-  if (!sets || sets.length === 0) {
-    return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Wardrobe is empty.</div>;
-  }
+  if (!sets || sets.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>Wardrobe is empty.</div>;
   const cur = sets[Math.min(activeSet, sets.length - 1)];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {sets.map((s, i) => (
-          <button key={i} onClick={() => setActiveSet(i)}
-            className={`tab-pill${activeSet === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
+          <button key={i} onClick={() => setActiveSet(i)} className={`tab-pill${activeSet === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
             Set {s.set}
             {s.total > 0 && <span style={{ marginLeft: 5, color: activeSet === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>· {formatCoins(s.total)}</span>}
           </button>
@@ -151,9 +139,7 @@ function WardrobeSetsView({ sets, onSelect }) {
       </div>
       <div className="table-wrap" style={{ border: 'none' }}>
         <table>
-          <thead>
-            <tr><th>Slot</th><th>Item</th><th style={{ width: 130, textAlign: 'right' }}>Est. Value</th></tr>
-          </thead>
+          <thead><tr><th>Slot</th><th>Item</th><th style={{ width: 130, textAlign: 'right' }}>Est. Value</th></tr></thead>
           <tbody>
             {cur.items.map((item, i) => (
               <tr key={i} onClick={() => onSelect(item)} style={{ cursor: 'pointer' }} className="clickable-row">
@@ -175,19 +161,15 @@ function WardrobeSetsView({ sets, onSelect }) {
   );
 }
 
-// ── Structured view: per-backpack slot ───────────────────────────────────────
 function BackpackSlotsView({ slots, onSelect }) {
   const [activeSlot, setActiveSlot] = useState(0);
-  if (!slots || slots.length === 0) {
-    return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No backpacks found.</div>;
-  }
+  if (!slots || slots.length === 0) return <div className="text-muted" style={{ fontSize: 13, padding: '20px 0', textAlign: 'center' }}>No backpacks found.</div>;
   const cur = slots[Math.min(activeSlot, slots.length - 1)];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {slots.map((s, i) => (
-          <button key={i} onClick={() => setActiveSlot(i)}
-            className={`tab-pill${activeSlot === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
+          <button key={i} onClick={() => setActiveSlot(i)} className={`tab-pill${activeSlot === i ? ' tab-pill--active' : ''}`} style={{ fontSize: 12 }}>
             Backpack {s.slot + 1}
             <span style={{ marginLeft: 5, background: 'var(--bg-4)', borderRadius: 10, padding: '1px 5px', fontSize: 10, color: 'var(--text-muted)' }}>{s.items.length}</span>
             {s.total > 0 && <span style={{ marginLeft: 4, color: activeSlot === i ? 'var(--gold)' : 'var(--text-muted)', fontWeight: 700, fontSize: 10 }}>· {formatCoins(s.total)}</span>}
@@ -199,29 +181,37 @@ function BackpackSlotsView({ slots, onSelect }) {
   );
 }
 
-// ── Tab content dispatcher ────────────────────────────────────────────────────
 function TabContent({ tab, data, onSelect }) {
-  if (tab.mode === 'pages')  return <EcPagesView     pages={data[tab.field] ?? []} onSelect={onSelect} />;
-  if (tab.mode === 'sets')   return <WardrobeSetsView sets={data[tab.field]  ?? []} onSelect={onSelect} />;
-  if (tab.mode === 'slots')  return <BackpackSlotsView slots={data[tab.field] ?? []} onSelect={onSelect} />;
+  if (tab.mode === 'pages') return <EcPagesView     pages={data[tab.field] ?? []} onSelect={onSelect} />;
+  if (tab.mode === 'sets')  return <WardrobeSetsView sets={data[tab.field]  ?? []} onSelect={onSelect} />;
+  if (tab.mode === 'slots') return <BackpackSlotsView slots={data[tab.field] ?? []} onSelect={onSelect} />;
   return <ItemsTable items={data[tab.field] ?? []} onSelect={onSelect} />;
 }
 
-// helper: total value from a tab's field
 function tabTotal(tab, data) {
-  if (tab.mode === 'flat') {
-    return (data[tab.field] ?? []).reduce((s, it) => s + (it.value || 0), 0);
-  }
+  if (tab.mode === 'flat') return (data[tab.field] ?? []).reduce((s, it) => s + (it.value || 0), 0);
   return (data[tab.field] ?? []).reduce((s, container) => s + (container.total || 0), 0);
 }
-
 function tabCount(tab, data) {
   if (tab.mode === 'flat') return (data[tab.field] ?? []).length;
   return (data[tab.field] ?? []).reduce((s, c) => s + (c.items?.length || 0), 0);
 }
 
+// ── History tooltip ────────────────────────────────────────────────────────────
+function HistTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div style={{ background: 'var(--bg-3)', border: '1px solid var(--border-bright)', borderRadius: 8, padding: '8px 14px', fontSize: 12 }}>
+      <div className="text-muted" style={{ marginBottom: 2 }}>{d.date}</div>
+      <div style={{ color: 'var(--gold)', fontWeight: 800, fontSize: 15 }}>{formatCoins(d.value)}</div>
+    </div>
+  );
+}
+
 export default function NetWorth() {
-  const [username, setUsername]     = useUserData('player_ign', '');
+  const { user }                = useSupabaseUser();
+  const [username, setUsername] = useUserData('player_ign', '');
   const [profileId, setProfileId]   = useState('');
   const [data, setData]             = useState(null);
   const [loading, setLoading]       = useState(false);
@@ -230,13 +220,20 @@ export default function NetWorth() {
   const [invTab, setInvTab]         = useState('inv');
   const [selectedItem, setSelectedItem] = useState(null);
 
-  async function fetchProfiles(user) {
+  // Snapshot / tracking state
+  const { saveSnapshot, loadSnapshots, deleteSnapshot } = usePlayerTracking(user?.id);
+  const [snapshots, setSnapshots]         = useState([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [showHistory, setShowHistory]     = useState(false);
+  const [saveMsg, setSaveMsg]             = useState('');   // '' | 'saving' | 'saved' | 'error'
+
+  async function fetchProfiles(ign) {
     try {
-      const d = await fetchPlayer(user);
+      const d = await fetchPlayer(ign);
       setProfiles(d.profiles || []);
       return d.active_profile?.profile_id ?? d.profiles?.[0]?.profile_id ?? '';
     } catch (e) {
-      setError(`Could not find player "${user}": ${e.message}`);
+      setError(`Could not find player "${ign}": ${e.message}`);
       return '';
     }
   }
@@ -244,6 +241,7 @@ export default function NetWorth() {
   async function lookup() {
     if (!username.trim()) return;
     setLoading(true); setError(''); setData(null); setInvTab('inv');
+    setShowHistory(false); setSnapshots([]);
     try {
       let pid = profileId;
       if (!pid) pid = await fetchProfiles(username.trim());
@@ -253,15 +251,43 @@ export default function NetWorth() {
     finally { setLoading(false); }
   }
 
-  // Always show purse + bank even when 0; filter everything else to > 0
+  async function handleSaveSnapshot() {
+    if (!data || !user) return;
+    setSaveMsg('saving');
+    const ok = await saveSnapshot(data.username, data.profile, data);
+    setSaveMsg(ok ? 'saved' : 'error');
+    setTimeout(() => setSaveMsg(''), 3000);
+  }
+
+  async function handleLoadHistory() {
+    if (!username.trim()) return;
+    setSnapshotsLoading(true);
+    setShowHistory(true);
+    const snaps = await loadSnapshots(username.trim());
+    setSnapshots(snaps);
+    setSnapshotsLoading(false);
+  }
+
+  async function handleDeleteSnapshot(id) {
+    await deleteSnapshot(id);
+    setSnapshots(prev => prev.filter(s => s.id !== id));
+  }
+
+  // Chart data — array of { date, value } from snapshots (oldest first)
+  const historyChartData = snapshots
+    .slice()
+    .reverse()
+    .map(s => ({
+      date:  new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      value: s.net_worth ?? s.snapshot?.total ?? 0,
+    }));
+
   const ALWAYS_SHOW = new Set(['purse', 'bank']);
   const breakdownEntries = data
     ? Object.entries(data.breakdown).filter(([k, v]) => ALWAYS_SHOW.has(k) || v > 0)
     : [];
   const pieData = breakdownEntries.filter(([, v]) => v > 0).map(([key, value]) => ({
-    name:  LABELS[key] || key,
-    value,
-    color: COLORS[key] || '#888',
+    name: LABELS[key] || key, value, color: COLORS[key] || '#888',
   }));
 
   return (
@@ -270,16 +296,21 @@ export default function NetWorth() {
       <PageHeader
         icon={Wallet}
         title="Net Worth Estimator"
-        description="Estimates total wealth across purse, bank, pets, and all inventory locations."
+        description="Estimates total wealth across purse, bank, pets, and every inventory location. Save snapshots to track progress over time."
       />
 
-      {/* Search */}
+      {/* Search toolbar */}
       <div className="toolbar">
         <div className="field">
           <label>Minecraft Username</label>
-          <input type="text" value={username} onChange={e => setUsername(e.target.value)}
+          <input
+            type="text"
+            value={username}
+            onChange={e => setUsername(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && lookup()}
-            placeholder="e.g. Technoblade" style={{ width: 200 }} />
+            placeholder="e.g. Technoblade"
+            style={{ width: 200 }}
+          />
         </div>
         {profiles.length > 0 && (
           <div className="field">
@@ -295,7 +326,14 @@ export default function NetWorth() {
         </button>
       </div>
 
-      {error && <div className="error-box">{error}</div>}
+      {error && (
+        <div className="error-box" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span>{error}</span>
+          <button className="btn-secondary btn-sm" onClick={lookup} style={{ flexShrink: 0 }}>
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
+      )}
 
       {loading && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
@@ -306,7 +344,7 @@ export default function NetWorth() {
       {data && !loading && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
-          {/* Total */}
+          {/* ── Total card ──────────────────────────────────────────────── */}
           <div className="card card--glow-gold" style={{ textAlign: 'center', padding: 32 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center', marginBottom: 4 }}>
               <User size={18} style={{ color: 'var(--gold)' }} />
@@ -319,12 +357,131 @@ export default function NetWorth() {
             <div className="nw-total">
               <AnimatedNumber value={data.total} formatter={formatCoins} />
             </div>
-            <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>
+            <div className="text-muted" style={{ fontSize: 12, marginTop: 6, marginBottom: 16 }}>
               Based on live AH/bazaar prices. Actual net worth may differ.
             </div>
+
+            {/* Track / Save actions */}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button
+                className={`btn-secondary btn-sm${saveMsg === 'saved' ? ' btn-success' : ''}`}
+                onClick={handleSaveSnapshot}
+                disabled={saveMsg === 'saving' || !user}
+                title={!user ? 'Sign in to save snapshots' : 'Save a snapshot of this player's data'}
+              >
+                {saveMsg === 'saving' ? <><RefreshCw size={12} className="spin" /> Saving…</>
+                  : saveMsg === 'saved' ? <>✓ Saved</>
+                  : saveMsg === 'error' ? <>✗ Error</>
+                  : <><Save size={12} /> Save Snapshot</>}
+              </button>
+              <button
+                className="btn-secondary btn-sm"
+                onClick={handleLoadHistory}
+                disabled={!user}
+                title={!user ? 'Sign in to view history' : 'View saved snapshots for this player'}
+              >
+                <History size={12} /> {showHistory ? 'Refresh' : 'View'} History
+              </button>
+            </div>
+            {!user && (
+              <div className="text-muted" style={{ fontSize: 11, marginTop: 6 }}>
+                Sign in to save snapshots and track progress over time.
+              </div>
+            )}
           </div>
 
-          {/* Breakdown tiles + chart */}
+          {/* ── History panel ───────────────────────────────────────────── */}
+          {showHistory && (
+            <div className="card">
+              <div className="card__title">
+                <History size={13} /> Snapshot History — {data.username}
+                <span className="text-muted" style={{ marginLeft: 8, fontSize: 11, fontWeight: 400 }}>
+                  {snapshots.length} saved
+                </span>
+              </div>
+
+              {snapshotsLoading ? (
+                <div className="spinner" />
+              ) : snapshots.length === 0 ? (
+                <div className="text-muted" style={{ fontSize: 13, padding: '16px 0' }}>
+                  No snapshots yet. Hit <strong>Save Snapshot</strong> above to start tracking this player.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* History area chart */}
+                  {historyChartData.length >= 2 && (
+                    <div style={{ height: 180 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={historyChartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%"  stopColor="var(--gold)" stopOpacity={0.3} />
+                              <stop offset="95%" stopColor="var(--gold)" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                          <XAxis dataKey="date" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} />
+                          <YAxis tickFormatter={v => formatCoins(v)} tick={{ fill: 'var(--text-muted)', fontSize: 10 }} tickLine={false} axisLine={false} width={68} />
+                          <Tooltip content={<HistTooltip />} />
+                          <Area type="monotone" dataKey="value" stroke="var(--gold)" strokeWidth={2.5} fill="url(#nwGrad)"
+                            dot={{ fill: 'var(--gold)', r: 3, strokeWidth: 0 }}
+                            activeDot={{ r: 5, fill: 'var(--gold)', strokeWidth: 0 }}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+
+                  {/* Snapshot rows */}
+                  <div className="table-wrap" style={{ border: 'none' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Profile</th>
+                          <th style={{ textAlign: 'right' }}>Net Worth</th>
+                          <th style={{ textAlign: 'right' }}>Purse</th>
+                          <th style={{ textAlign: 'right' }}>Bank</th>
+                          <th style={{ textAlign: 'right' }}>Pets</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {snapshots.map((s, i) => {
+                          const bd = s.snapshot?.breakdown ?? s.breakdown ?? {};
+                          return (
+                            <tr key={s.id ?? i}>
+                              <td className="text-muted" style={{ fontSize: 12 }}>
+                                {new Date(s.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                              </td>
+                              <td className="text-muted" style={{ fontSize: 12 }}>{s.profile_name || '—'}</td>
+                              <td style={{ textAlign: 'right', color: 'var(--gold)', fontWeight: 700 }}>{formatCoins(s.net_worth)}</td>
+                              <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>{formatCoins(bd.purse ?? 0)}</td>
+                              <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>{formatCoins(bd.bank ?? 0)}</td>
+                              <td style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: 12 }}>{formatCoins(bd.pets ?? 0)}</td>
+                              <td>
+                                {s.id && (
+                                  <button
+                                    className="btn-icon btn-sm btn-danger"
+                                    onClick={() => handleDeleteSnapshot(s.id)}
+                                    title="Delete snapshot"
+                                  >
+                                    <Trash2 size={11} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Breakdown tiles + Pie chart ─────────────────────────────── */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
             <div className="nw-breakdown">
               {breakdownEntries.map(([key, value]) => (
@@ -346,9 +503,7 @@ export default function NetWorth() {
                 <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
                     <Pie data={pieData} cx="50%" cy="50%" outerRadius={85} dataKey="value" stroke="none">
-                      {pieData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
+                      {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
                     <Tooltip
                       formatter={(v, name) => [formatCoins(v), name]}
@@ -361,7 +516,7 @@ export default function NetWorth() {
             )}
           </div>
 
-          {/* Inventory browser */}
+          {/* ── Inventory browser ─────────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div className="tab-pills">
               {INV_TABS.map(t => {
@@ -407,7 +562,7 @@ export default function NetWorth() {
             ))}
           </div>
 
-          {/* Pets */}
+          {/* ── Pets ─────────────────────────────────────────────────────── */}
           {data.pets?.length > 0 && (
             <div className="card">
               <div className="card__title">

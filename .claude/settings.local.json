@@ -10,7 +10,8 @@
       "Bash(gh search:*)",
       "Bash(python -c \"\nimport ast\nfiles = [\n    'backend/routers/player.py',\n    'backend/utils/item_prices.py',\n    'backend/utils/prices_v2.py',\n    'backend/main.py',\n]\nfor f in files:\n    with open\\(f'C:/Users/itama/Desktop/skyhelp/{f}'\\) as fh:\n        ast.parse\\(fh.read\\(\\)\\)\n    print\\(f'{f}: OK'\\)\n\")",
       "Bash(wc -l src/**/*.jsx src/utils/*.js src/hooks/*.js backend/routers/*.py backend/utils/*.py)",
-      "Bash(grep -r \"innerHTML\\\\|dangerouslySetInnerHTML\" src/ --include=*.jsx --include=*.js)"
+      "Bash(grep -r \"innerHTML\\\\|dangerouslySetInnerHTML\" src/ --include=*.jsx --include=*.js)",
+      "Bash(find /c/Users/itama/Desktop/skyhelp -type f -name *.sql)"
     ]
   }
 }

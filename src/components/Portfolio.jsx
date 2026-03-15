@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Layers, Plus, Trash2, Download, Upload, TrendingUp, Cloud } from 'lucide-react';
+import { Layers, Plus, Trash2, Download, Upload, TrendingUp, Cloud, BarChart2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import PageHeader from './ui/PageHeader';
 import { useFetch } from '../hooks/useFetch';
@@ -47,9 +47,10 @@ function HistoryTooltip({ active, payload, label }) {
 export default function Portfolio() {
   const [items, setItems]       = useState(loadPortfolio);
   const [history, setHistory]   = useState(loadHistory);
-  const [form, setForm]         = useState({ name: '', itemId: '', qty: 1, avgCost: '', manualPrice: '' });
+  const [form, setForm]         = useState({ name: '', itemId: '', qty: 1, avgCost: '', manualPrice: '', notes: '' });
   const [importError, setImportError] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState('all');
   const { user } = useSupabaseUser();
   const { openAuth } = useAuthModal();
 
@@ -121,8 +122,15 @@ export default function Portfolio() {
     return { ...item, currentPrice, totalValue, invested, profit, source };
   }), [items, priceMap, manualData]);
 
-  const totalValue  = enriched.reduce((sum, i) => sum + i.totalValue, 0);
-  const totalProfit = enriched.reduce((sum, i) => sum + i.profit, 0);
+  const totalValue    = enriched.reduce((sum, i) => sum + i.totalValue, 0);
+  const totalProfit   = enriched.reduce((sum, i) => sum + i.profit, 0);
+  const totalInvested = enriched.reduce((sum, i) => sum + i.invested, 0);
+  const roi           = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
+
+  const filteredEnriched = useMemo(
+    () => sourceFilter === 'all' ? enriched : enriched.filter(i => i.source === sourceFilter),
+    [enriched, sourceFilter],
+  );
 
   // Auto-snapshot: save to history at most every 4 hours when total value is nonzero
   useEffect(() => {
@@ -161,9 +169,10 @@ export default function Portfolio() {
       qty: Number(form.qty),
       avgCost: Number(form.avgCost || 0),
       manualPrice: Number(form.manualPrice || 0),
+      notes: form.notes.trim(),
     }];
     setItems(next); savePortfolio(next);
-    setForm({ name: '', itemId: '', qty: 1, avgCost: '', manualPrice: '' });
+    setForm({ name: '', itemId: '', qty: 1, avgCost: '', manualPrice: '', notes: '' });
   }
 
   function removeItem(id) {
@@ -236,12 +245,22 @@ export default function Portfolio() {
         <div className="stat-tile stat-tile--gold">
           <div className="stat-tile__header"><span className="stat-tile__label">Total Value</span></div>
           <div className="stat-tile__value">{formatCoins(totalValue)}</div>
-          <div className="stat-tile__sub">live estimate</div>
+          <div className="stat-tile__sub">live estimate · {enriched.length} holdings</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-tile__header"><span className="stat-tile__label">Total Invested</span></div>
+          <div className="stat-tile__value">{formatCoins(totalInvested)}</div>
+          <div className="stat-tile__sub">avg cost basis</div>
         </div>
         <div className={`stat-tile ${totalProfit >= 0 ? 'stat-tile--green' : 'stat-tile--orange'}`}>
           <div className="stat-tile__header"><span className="stat-tile__label">Total P/L</span></div>
           <div className="stat-tile__value">{totalProfit >= 0 ? '+' : ''}{formatCoins(totalProfit)}</div>
           <div className="stat-tile__sub">vs average cost</div>
+        </div>
+        <div className={`stat-tile ${roi >= 0 ? 'stat-tile--green' : 'stat-tile--orange'}`}>
+          <div className="stat-tile__header"><span className="stat-tile__label"><BarChart2 size={12} /> ROI</span></div>
+          <div className="stat-tile__value">{roi >= 0 ? '+' : ''}{roi.toFixed(1)}%</div>
+          <div className="stat-tile__sub">return on investment</div>
         </div>
         {chartData.length >= 2 && (() => {
           const oldest = chartData[0].value;
@@ -336,19 +355,53 @@ export default function Portfolio() {
             <label>Manual Price</label>
             <input type="number" value={form.manualPrice || ''} onChange={e => setForm(f => ({ ...f, manualPrice: e.target.value }))} placeholder="coins" />
           </div>
+          <div className="field" style={{ minWidth: 180 }}>
+            <label>Notes (optional)</label>
+            <input type="text" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="e.g. long-term hold" />
+          </div>
           <button className="btn-primary" type="submit"><Plus size={14} /> Add</button>
         </form>
       </div>
 
       {/* Holdings table */}
       <div className="card">
-        <div className="card__title">Holdings</div>
+        <div className="card__title" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          Holdings
+          {items.length > 0 && (
+            <span style={{ background: 'var(--bg-4)', borderRadius: 10, padding: '1px 8px', fontSize: 11, color: 'var(--text-muted)' }}>
+              {items.length}
+            </span>
+          )}
+          {/* Source filter pills */}
+          {items.length > 0 && (
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+              {['all', 'bazaar', 'curated', 'manual', 'n/a'].map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSourceFilter(s)}
+                  className={`tab-pill${sourceFilter === s ? ' tab-pill--active' : ''}`}
+                  style={{ fontSize: 10, padding: '2px 8px' }}
+                >
+                  {s === 'all' ? 'All' : s === 'n/a' ? 'No Price' : s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         {loading && !data && <div className="spinner" />}
+
         {items.length === 0 ? (
           <div className="empty-state" style={{ marginTop: 20 }}>
-            <span className="empty-state-icon">*</span>
+            <span className="empty-state-icon">📦</span>
             <span>No holdings yet</span>
-            <span className="text-muted" style={{ fontSize: 12 }}>Add items to track live value</span>
+            <span className="text-muted" style={{ fontSize: 12 }}>
+              Add an item above — use a Bazaar Item ID for live prices, or set a Manual Price.
+            </span>
+          </div>
+        ) : filteredEnriched.length === 0 ? (
+          <div className="text-muted" style={{ padding: '20px 0', textAlign: 'center', fontSize: 13 }}>
+            No items match the selected source filter.
           </div>
         ) : (
           <div className="table-wrap" style={{ border: 'none' }}>
@@ -361,30 +414,38 @@ export default function Portfolio() {
                   <th>Avg Cost</th>
                   <th>Total Value</th>
                   <th>P/L</th>
+                  <th>ROI %</th>
                   <th>Source</th>
                   <th />
                 </tr>
               </thead>
               <tbody>
-                {enriched.map(item => (
-                  <tr key={item.id}>
-                    <td className="text-bold">
-                      {item.name}
-                      {item.itemId && <div className="text-muted" style={{ fontSize: 10 }}>{item.itemId}</div>}
-                    </td>
-                    <td className="text-muted">{item.qty.toLocaleString()}</td>
-                    <td>{item.currentPrice ? formatCoins(item.currentPrice) : 'N/A'}</td>
-                    <td className="text-muted">{item.avgCost ? formatCoins(item.avgCost) : 'N/A'}</td>
-                    <td style={{ fontWeight: 700 }}>{formatCoins(item.totalValue)}</td>
-                    <td className={item.profit >= 0 ? 'text-green' : 'text-red'} style={{ fontWeight: 700 }}>
-                      {item.profit >= 0 ? '+' : ''}{formatCoins(item.profit)}
-                    </td>
-                    <td className="text-muted" style={{ textTransform: 'uppercase', fontSize: 11 }}>{item.source}</td>
-                    <td>
-                      <button className="btn-icon btn-sm btn-danger" onClick={() => removeItem(item.id)}><Trash2 size={12} /></button>
-                    </td>
-                  </tr>
-                ))}
+                {filteredEnriched.map(item => {
+                  const itemRoi = item.invested > 0 ? (item.profit / item.invested) * 100 : null;
+                  return (
+                    <tr key={item.id}>
+                      <td className="text-bold">
+                        {item.name}
+                        {item.itemId && <div className="text-muted" style={{ fontSize: 10 }}>{item.itemId}</div>}
+                        {item.notes  && <div className="text-muted" style={{ fontSize: 10, fontStyle: 'italic' }}>{item.notes}</div>}
+                      </td>
+                      <td className="text-muted">{item.qty.toLocaleString()}</td>
+                      <td>{item.currentPrice ? formatCoins(item.currentPrice) : <span className="text-muted">N/A</span>}</td>
+                      <td className="text-muted">{item.avgCost ? formatCoins(item.avgCost) : <span className="text-muted">—</span>}</td>
+                      <td style={{ fontWeight: 700 }}>{formatCoins(item.totalValue)}</td>
+                      <td className={item.profit >= 0 ? 'text-green' : 'text-red'} style={{ fontWeight: 700 }}>
+                        {item.invested > 0 ? (item.profit >= 0 ? '+' : '') + formatCoins(item.profit) : <span className="text-muted">—</span>}
+                      </td>
+                      <td className={itemRoi !== null ? (itemRoi >= 0 ? 'text-green' : 'text-red') : ''} style={{ fontSize: 12 }}>
+                        {itemRoi !== null ? `${itemRoi >= 0 ? '+' : ''}${itemRoi.toFixed(1)}%` : <span className="text-muted">—</span>}
+                      </td>
+                      <td className="text-muted" style={{ textTransform: 'uppercase', fontSize: 11 }}>{item.source}</td>
+                      <td>
+                        <button className="btn-icon btn-sm btn-danger" onClick={() => removeItem(item.id)}><Trash2 size={12} /></button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
