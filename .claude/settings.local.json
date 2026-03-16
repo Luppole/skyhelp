@@ -16,7 +16,10 @@
       "WebFetch(domain:skyhelp-iscy7dr6c-itamars-projects-dbee0c94.vercel.app)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(find /c/Users/itama/Desktop/skyhelp/src -type f \\\\\\(-name *.jsx -o -name *.js -o -name *.ts -o -name *.tsx \\\\\\))",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(where npm:*)"
     ]
   }
 }

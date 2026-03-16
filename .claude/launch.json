@@ -1,17 +1,1 @@
-{
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "frontend",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 5173
-    },
-    {
-      "name": "backend",
-      "runtimeExecutable": "uvicorn",
-      "runtimeArgs": ["backend.main:app", "--reload", "--port", "8000"],
-      "port": 8000
-    }
-  ]
-}
+{"version":"0.0.1","configurations":[{"name":"skyhelp-dev","runtimeExecutable":"C:\Program Files\nodejs\npm.cmd","runtimeArgs":["run","dev"],"port":5173}]}
